@@ -1,0 +1,45 @@
+# Config de la carte de test CNN (MNIST pour commencer), gérée par l'ESPHome de Home Assistant.
+# La config vivante est dans HA ; ce fichier en est la référence versionnée.
+# Les deux lignes marquées HA sont à garder telles que HA les a générées.
+esphome:
+  name: cnn-test
+  friendly_name: CNN test
+
+esp32:
+  board: esp32dev          # ESP-WROOM-32, même puce que la carte PZEM
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+api:
+  encryption:
+    key: "..."             # HA : clé générée à la création de l'appareil
+
+ota:
+  - platform: esphome
+    password: "..."        # HA : mot de passe généré à la création
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "cnn-test fallback"
+
+captive_portal:
+
+# Composant nn_mnist lu dans le dépôt privé GitHub.
+external_components:
+  - source:
+      type: git
+      url: https://github.com/nErur/Neural-Networks
+      ref: master                      # plus tard : un tag pour la carte PZEM
+      path: esp32/esphome/components
+      username: !secret github_user
+      password: !secret github_token
+    components: [nn_mnist]
+    refresh: 0s                        # récupère le dernier commit à chaque compilation
+
+nn_mnist:
+  id: mnist

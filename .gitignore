@@ -4,3 +4,8 @@ __pycache__/
 .ipynb_checkpoints/
 
 .claude/settings.local.json
+
+# ESP32 / ESPHome
+/esp32/.venv-esphome/
+/esp32/esphome/.esphome/
+/esp32/esphome/secrets.yaml

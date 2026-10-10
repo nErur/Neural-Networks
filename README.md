@@ -30,3 +30,7 @@ Résultat obtenu : 9479–9503 / 10000 sur les dernières époques (≈ 95 %).
 `nielsen/` = clone de mnielsen/neural-networks-and-deep-learning (72db53d, Python 2.7).
 Portage Python 3 de `network.py`, `network2.py`, `mnist_loader.py` : commit séparé.
 Comparer avec l'original : `git diff d3a694a da0a789 -- nielsen/src`.
+
+## ESP32
+
+`esp32/` = déploiement d'un petit réseau MNIST sur ESP32 via ESPHome, banc d'essai du pipeline SpectraSense. Plan : `esp32/PLAN.md`.
