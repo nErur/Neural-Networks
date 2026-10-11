@@ -2,19 +2,22 @@
 
 Toutes les entités sont facultatives. test_vectors (vrai par défaut) embarque
 les images de test de test_vectors.h, nécessaires au bouton « image suivante »
-et à l'autotest.
+et à l'autotest. activity_output (facultatif) : une sortie, par exemple la LED
+de la carte, allumée pendant au moins activity_duration à chaque inférence.
 """
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import sensor, text_sensor
+from esphome.components import output, sensor, text_sensor
 from esphome.const import CONF_ID, ENTITY_CATEGORY_DIAGNOSTIC, STATE_CLASS_MEASUREMENT
 
-AUTO_LOAD = ["sensor", "text_sensor"]
+AUTO_LOAD = ["output", "sensor", "text_sensor"]
 
 nn_mnist_ns = cg.esphome_ns.namespace("nn_mnist")
 NnMnist = nn_mnist_ns.class_("NnMnist", cg.Component)
 
 CONF_TEST_VECTORS = "test_vectors"
+CONF_ACTIVITY_OUTPUT = "activity_output"
+CONF_ACTIVITY_DURATION = "activity_duration"
 CAPTEURS = {
     # clé YAML : (unité, décimales, icône, catégorie)
     "prediction": (None, 0, "mdi:numeric", None),
@@ -48,6 +51,8 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(NnMnist),
         cv.Optional(CONF_TEST_VECTORS, default=True): cv.boolean,
+        cv.Optional(CONF_ACTIVITY_OUTPUT): cv.use_id(output.BinaryOutput),
+        cv.Optional(CONF_ACTIVITY_DURATION, default="150ms"): cv.positive_time_period_milliseconds,
         **{cv.Optional(cle): _capteur(*v) for cle, v in CAPTEURS.items()},
         **{cv.Optional(cle): _texte(*v) for cle, v in TEXTES.items()},
     }
@@ -59,6 +64,10 @@ async def to_code(config):
     await cg.register_component(var, config)
     if config[CONF_TEST_VECTORS]:
         cg.add_define("USE_NN_MNIST_TEST_VECTORS")
+    if CONF_ACTIVITY_OUTPUT in config:
+        sortie = await cg.get_variable(config[CONF_ACTIVITY_OUTPUT])
+        cg.add(var.set_activity_output(sortie))
+        cg.add(var.set_activity_duration(config[CONF_ACTIVITY_DURATION].total_milliseconds))
     for cle in CAPTEURS:
         if cle in config:
             sens = await sensor.new_sensor(config[cle])

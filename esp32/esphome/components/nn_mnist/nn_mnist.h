@@ -7,6 +7,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
+#include "esphome/components/output/binary_output.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
@@ -32,6 +33,11 @@ class NnMnist : public Component {
   void set_max_error_sensor(sensor::Sensor *s) { max_error_ = s; }
   void set_model_id_text_sensor(text_sensor::TextSensor *s) { model_id_ = s; }
   void set_autotest_text_sensor(text_sensor::TextSensor *s) { autotest_ = s; }
+
+  // Témoin d'activité (facultatif) : allumé à chaque inférence, éteint
+  // activity_duration_ ms après la dernière (300 µs seraient invisibles).
+  void set_activity_output(output::BinaryOutput *o) { activity_ = o; }
+  void set_activity_duration(uint32_t ms) { activity_duration_ = ms; }
 
   // Les deux portes d'entrée : elles ne font que déposer une demande,
   // traitée par loop() (une seule chaîne de traitement).
@@ -62,6 +68,7 @@ class NnMnist : public Component {
   // Classe image_ ; test_index >= 0 : image de test, comparée aux références.
   void classify_(int test_index);
   void do_autotest_();
+  void signal_activity_();
 
   Pending pending_{Pending::kNone};
   int pending_test_{-1};
@@ -78,6 +85,8 @@ class NnMnist : public Component {
   sensor::Sensor *max_error_{nullptr};
   text_sensor::TextSensor *model_id_{nullptr};
   text_sensor::TextSensor *autotest_{nullptr};
+  output::BinaryOutput *activity_{nullptr};
+  uint32_t activity_duration_{150};
 };
 
 }  // namespace nn_mnist

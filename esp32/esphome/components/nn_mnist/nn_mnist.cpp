@@ -72,8 +72,18 @@ void NnMnist::run_autotest() {
 void NnMnist::loop() {
   const Pending p = pending_;
   pending_ = Pending::kNone;
+  if (p == Pending::kNone) return;
+  signal_activity_();
   if (p == Pending::kImage) classify_(pending_test_);
-  else if (p == Pending::kAutotest) do_autotest_();
+  else do_autotest_();
+}
+
+void NnMnist::signal_activity_() {
+  if (activity_ == nullptr) return;
+  activity_->turn_on();
+  // Un nouveau set_timeout du même nom remplace le précédent : la LED reste
+  // allumée tant que les inférences s'enchaînent.
+  this->set_timeout("activity", activity_duration_, [this]() { activity_->turn_off(); });
 }
 
 void NnMnist::classify_(int test_index) {

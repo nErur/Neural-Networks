@@ -33,8 +33,19 @@ external_components:
       type: local
       path: components
 
+# LED bleue « D2 » de la carte (GPIO2, allumée à l'état haut) : témoin d'inférence.
+# GPIO2 est une broche de démarrage (strapping) ; la LED ne gêne pas le démarrage.
+output:
+  - platform: gpio
+    id: led_d2
+    pin:
+      number: GPIO2
+      ignore_strapping_warning: true
+
 nn_mnist:
   id: mnist
+  activity_output: led_d2
+  activity_duration: 150ms
   prediction:
     name: "Chiffre prédit"
   confidence:
