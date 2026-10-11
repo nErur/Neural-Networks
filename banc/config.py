@@ -55,6 +55,10 @@ def completer(cfg=None, **modifs):
     if c["tache"] not in OPTIONS_TACHES:
         raise ValueError("tâche inconnue : %r" % c["tache"])
     c["tache_options"] = {**OPTIONS_TACHES[c["tache"]], **c["tache_options"]}
+    if not isinstance(c["couches"], list) or not all(isinstance(x, dict) for x in c["couches"]):
+        raise ValueError("couches : une liste de couches, ex. [{\"type\": \"dense\", \"n\": 30, "
+                         "\"act\": \"relu\"}] ; reçu %r (dans une grille du lot : une liste de ces "
+                         "listes, une par architecture)" % (c["couches"],))
     for couche in c["couches"]:
         if couche.get("type") not in TYPES:
             raise ValueError("type de couche inconnu : %r" % couche)
