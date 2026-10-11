@@ -1,3 +1,10 @@
+// ESPHome compile le firmware en -Os (taille). Pour ce seul fichier, -O2 :
+// la boucle du produit scalaire passe de 9 instructions avec un saut (~13
+// cycles par multiplication-addition) à 5 instructions dans une boucle
+// matérielle Xtensa (~5-6 cycles), pour ~130 octets de code en plus.
+// Mesuré et désassemblé avec xtensa-esp32-elf-g++ 14.2.0 (esp-14.2.0_20260121).
+#pragma GCC optimize("O2")
+
 #include "nn_engine.h"
 
 #include <cmath>

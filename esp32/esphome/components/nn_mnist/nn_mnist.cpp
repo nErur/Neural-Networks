@@ -245,8 +245,14 @@ void NnMnist::autotest_step_() {
 // ---------------------------------------------------------------- profilage
 
 // Produit scalaire identique à la boucle de nn_engine, jamais intégré par le
-// compilateur, pour mesurer le coût d'une multiplication-addition.
+// compilateur, pour mesurer le coût d'une multiplication-addition : une version
+// compilée comme le reste du firmware (-Os), une version -O2 comme le moteur.
 static float __attribute__((noinline)) dot_(const float *w, const float *x, int n) {
+  float z = 0.0f;
+  for (int k = 0; k < n; k++) z += w[k] * x[k];
+  return z;
+}
+static float __attribute__((noinline, optimize("O2"))) dot_o2_(const float *w, const float *x, int n) {
   float z = 0.0f;
   for (int k = 0; k < n; k++) z += w[k] * x[k];
   return z;
@@ -280,14 +286,19 @@ void NnMnist::profile_step_() {
     profile_index_++;
     return;
   }
-  profile_report_();
-  profile_index_ = -1;
+  // deux dernières étapes : rapport par étage, puis coûts unitaires
+  profile_report_(profile_index_ == ::nn_model::kNumTestVectors);
+  if (++profile_index_ > ::nn_model::kNumTestVectors + 1) profile_index_ = -1;
 #endif
 }
 
-void NnMnist::profile_report_() {
+void NnMnist::profile_report_(bool stages) {
 #ifdef USE_NN_MNIST_TEST_VECTORS
   const nn::Model &m = model();
+  if (!stages) {
+    unit_costs_();
+    return;
+  }
   const int N = ::nn_model::kNumTestVectors;
   // fréquence réelle : cycles écoulés / µs écoulées depuis le début du profilage
   const float mhz = (float) (cycles() - prof_c0_) / (float) (micros() - prof_u0_);
@@ -312,6 +323,12 @@ void NnMnist::profile_report_() {
   }
   ESP_LOGI(TAG, "  total mesuré : %u cycles = %.1f µs (somme des étages : %.1f µs)", (unsigned) (prof_total_ / N),
            us(prof_total_ / N), us(somme));
+#endif
+}
+
+void NnMnist::unit_costs_() {
+#ifdef USE_NN_MNIST_TEST_VECTORS
+  const nn::Model &m = model();
 
   // ---- coûts unitaires : chaque opération moins une boucle témoin identique
   const int R = 1000;
@@ -344,11 +361,15 @@ void NnMnist::profile_report_() {
   t0 = cycles();
   for (int p = 0; p < P; p++) g_sink = dot_(w_ram, input_, n);
   const uint32_t t_ram = cycles() - t0;
+  t0 = cycles();
+  for (int p = 0; p < P; p++) g_sink = dot_o2_(w_ram, input_, n);
+  const uint32_t t_ram_o2 = cycles() - t0;
 
   ESP_LOGI(TAG, "coûts unitaires (cycles) :");
   ESP_LOGI(TAG, "  division float       : %.0f", (float) ((int) t_div - (int) base_mul) / R);
   ESP_LOGI(TAG, "  expf                 : %.0f", (float) ((int) t_exp - (int) base_exp) / R);
-  ESP_LOGI(TAG, "  mult.-add., poids en RAM                : %.1f", (float) t_ram / (P * n));
+  ESP_LOGI(TAG, "  mult.-add., poids en RAM, code -Os       : %.1f", (float) t_ram / (P * n));
+  ESP_LOGI(TAG, "  mult.-add., poids en RAM, code -O2       : %.1f", (float) t_ram_o2 / (P * n));
   ESP_LOGI(TAG, "  mult.-add., poids en flash, 1er passage : %.1f", (float) t_flash_froid / n);
   ESP_LOGI(TAG, "  mult.-add., poids en flash, ensuite     : %.1f", (float) t_flash_chaud / (P * n));
   if (m.layers[0].W == w_flash) {

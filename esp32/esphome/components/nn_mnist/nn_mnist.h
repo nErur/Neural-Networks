@@ -73,7 +73,8 @@ class NnMnist : public Component {
   void classify_(int test_index);
   void autotest_step_();            // une image de test par passage dans loop()
   void profile_step_();             // idem pour le profilage
-  void profile_report_();
+  void profile_report_(bool stages);
+  void unit_costs_();
   void signal_activity_();
   bool copy_weights_to_ram_();
 
