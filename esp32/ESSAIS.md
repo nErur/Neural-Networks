@@ -61,6 +61,7 @@ et l'ESP (24/24 à chaque fois). C'est le seul étage où l'on exige l'égalité
 | Prédiction C = prédiction Python (y compris ses 2 erreurs) | 24/24 | 24/24 ✓ |
 | Test du test : poids transposés, ÷256, biais oublié | détectés au bon étage | 3/3 ✓ |
 | **Sur l'ESP** (autotest) | 24/24, ≈ 3e-7 | **24/24, 3,0e-7** ✓ |
+| **Images envoyées depuis le PC** (`send.py`, action API `classify`) | même prédiction que Python | **10/10**, mêmes confiances au 0,1 % près ✓ |
 
 → Tolérance de 1e-5 sur les couches : elle laisse de la marge aux différences d'ordre des additions
 et à l'instruction `madd.s` (multiplication et addition fusionnées) de l'ESP.
@@ -80,6 +81,10 @@ Rejouer : `python esp32\python\export.py` (contrôles 1 et 2), `python esp32\tes
 | Moteur en `-O2` (pragma), poids en RAM | 400–500 µs au profilage | **344 µs** au profilage ✓ (mieux que prévu) |
 
 Bilan : de 3,7 ms à 0,34 ms, soit **×10,7**, sans changer un bit des résultats (toujours 24/24, 3,0e-7).
+
+Images reçues par l'API, espacées de 0,5 s (`send.py`) : **500 à 620 µs** (prédiction 350–450 µs ✗).
+Hypothèse : entre deux images, le traitement réseau (Wi-Fi, déchiffrement de l'API) chasse du cache
+le code du moteur et d'`expf`, relu ensuite en flash. Non vérifié ; piste : placer le moteur en IRAM.
 
 ### 4.2 Coûts unitaires (cycles à 240 MHz, bouton « Profilage »)
 
