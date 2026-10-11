@@ -77,7 +77,9 @@ Rejouer : `python esp32\python\export.py` (contrôles 1 et 2), `python esp32\tes
 |---|---|---|
 | Poids en flash (`const`, par défaut) | 200–400 µs | **3,4–3,9 ms** (image seule), 4,8 ms (autotest, logs en parallèle) ✗ |
 | Poids copiés en RAM (`weights_in_ram: true`) | 200–400 µs | **0,80 ms** (image seule), 0,88 ms (autotest), 0,66 ms (profilage) |
-| Moteur en `-O2` (pragma) | 400–500 µs au profilage | *à mesurer* |
+| Moteur en `-O2` (pragma), poids en RAM | 400–500 µs au profilage | **344 µs** au profilage ✓ (mieux que prévu) |
+
+Bilan : de 3,7 ms à 0,34 ms, soit **×10,7**, sans changer un bit des résultats (toujours 24/24, 3,0e-7).
 
 ### 4.2 Coûts unitaires (cycles à 240 MHz, bouton « Profilage »)
 
@@ -86,17 +88,19 @@ Rejouer : `python esp32\python\export.py` (contrôles 1 et 2), `python esp32\tes
 | Division float (pas d'instruction matérielle) | 30–100 | **63** ✓ |
 | `expf` | 100–300 | **302** ✓ |
 | Multiplication-addition, poids en RAM, code `-Os` | 5–8 | **13,3** ✗ |
+| Multiplication-addition, poids en RAM, code `-O2` | 5–6 | **5,5** ✓ |
 | Multiplication-addition, poids en flash hors cache | ≈ 90 | **155** ✗ |
 | Multiplication-addition, poids en flash déjà en cache | ≈ RAM | **14,2** ✓ |
 
-### 4.3 Où va le temps (poids en RAM, code `-Os`, 661 µs)
+### 4.3 Où va le temps (poids en RAM)
 
-| Étage | Mesure | Part |
-|---|---|---|
-| Couche 0, produit (5 880 multiplications-additions) | 428 µs (17,5 cycles chacune) | 65 % |
-| Prétraitement (196 divisions) | 122 µs | 18 % |
-| Couche 0, sigmoïde (30 neurones, 391 cycles chacun = `expf` + division) | 49 µs | 7 % |
-| Couche 1, produit + softmax | 38 µs | 6 % |
+| Étage | Code `-Os` (661 µs) | Code `-O2` (344 µs) | Part en `-O2` |
+|---|---|---|---|
+| Couche 0, produit (5 880 multiplications-additions) | 428 µs (17,5 cycles chacune) | **128 µs (5,2 cycles)** | 37 % |
+| Prétraitement (196 divisions) | 122 µs | 98 µs | 28 % |
+| Couche 0, sigmoïde (30 neurones) | 49 µs (391 cycles/neurone) | 55 µs (436 cycles/neurone) | 16 % |
+| Couche 1, produit + softmax | 38 µs | 26 µs | 8 % |
+| Reste (mesure, recherche du maximum…) | 23 µs | 37 µs | 11 % |
 
 ### 4.4 Explications
 
@@ -109,11 +113,14 @@ Rejouer : `python esp32\python\export.py` (contrôles 1 et 2), `python esp32\tes
   ESPHome compile en `-Os` ; la directive `#pragma GCC optimize("O2")` ne s'applique qu'à `nn_engine.cpp`
   (+130 octets).
 - Hypothèse écartée : une chaîne de dépendances entre additions. En `-O2`, cinq instructions séparent deux `madd.s`.
+- Écart 17,5 / 13,3 cycles en `-Os` (moteur / microbanc) : la boucle du moteur a une instruction de plus
+  (`extui`, qui recalcule l'indice sur 16 bits, probablement à cause du type `uint16_t` de `n_in`),
+  et le calcul d'adresse en dépend aussitôt. En `-O2`, les deux tombent à 5,2–5,5 cycles : sans enjeu.
 
 ### 4.5 Décisions
 
 - **`weights_in_ram: true`** : 25 Ko de RAM sur ~135 Ko libres, ×4,2 en vitesse, résultats identiques au bit près.
-- **Moteur en `-O2`** par directive, le reste du firmware en `-Os`.
+- **Moteur en `-O2`** par directive, le reste du firmware en `-Os` : produit matriciel ×3,4.
 - **Pour SpectraSense** : une sigmoïde coûte autant qu'environ 30 multiplications-additions.
   Dans les couches cachées d'un CNN (des milliers d'activations), préférer **ReLU** (1 à 2 cycles).
 - **Pas de quantification int8 pour l'instant** : la flash et le temps ne sont pas des contraintes
@@ -157,12 +164,12 @@ la carte attend plus qu'elle ne calcule, sauf si l'on entraîne des centaines de
 
 ## 6. Questions ouvertes
 
-- Résultat du moteur en `-O2` (prédiction : 5–6 cycles en microbanc, couche 0 en 150–250 µs).
-- Pourquoi le produit de la couche 0 coûte 17,5 cycles par multiplication-addition alors que le microbanc,
-  avec la même boucle, en coûte 13,3.
+- Les activations sont un peu plus lentes en `-O2` (sigmoïde 391 → 436 cycles par neurone, softmax 379 → 453),
+  alors que `expf` coûte toujours ~300 cycles. Non expliqué (code de `expf` relu en flash ?). Enjeu : ~10 µs.
 - Flash en QIO à 80 MHz (≈ 4 fois plus de débit) avec les poids laissés en flash : prédiction ≈ 1 ms. Non testé.
-- Diviser par multiplication par l'inverse dans le prétraitement : −45 µs environ, mais il faut changer
-  la spécification des deux côtés (numpy et C) pour garder l'égalité au bit près.
+- Prochain poste : le prétraitement (98 µs, dont ~51 µs de divisions). Multiplier par l'inverse :
+  −45 µs environ, mais il faut changer la spécification des deux côtés (numpy et C)
+  pour garder l'égalité au bit près. Puis les 40 `expf` (~50 µs).
 
 ---
 
