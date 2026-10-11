@@ -73,7 +73,7 @@ def preprocess(img_u8):          # (28, 28) uint8
 
 **`test_vectors.h`** (environ 35 Ko)
 
-- Une vingtaine d'images choisies : deux par chiffre, plus quelques images mal classées ou peu sûres.
+- 24 images choisies : deux par chiffre classées avec assurance, plus les deux erreurs les plus assurées et les deux bonnes réponses les plus hésitantes.
 - Pour chaque image : image brute (784 octets), étiquette, entrée réduite (196), couche cachée (30), sortie (10).
 
 | Ce qui diffère | Où est le bug |
@@ -167,7 +167,7 @@ api:
 | Écart max vs Python | sensor | Images de test seulement |
 | Modèle | text\_sensor | Identifiant publié au démarrage |
 
-- **Bouton « Autotest »** : passe les 20 images de test et publie un bilan (« 20/20 conformes », écart maximal, temps moyen). À lancer après chaque mise à jour OTA.
+- **Bouton « Autotest »** : passe les 24 images de test et publie un bilan (« 24/24 conformes », écart maximal, temps moyen). À lancer après chaque mise à jour OTA.
 - **Détail par étage** dans les logs ESPHome (`ESP_LOGD`), pas dans HA.
 - **Ne pas bloquer la boucle** : ESPHome signale un composant qui garde la main plus de 30 ms environ. Sans risque ici ; à surveiller avec un CNN plus gros.
 - **Option `test_vectors: true`** pour inclure les vecteurs de test à la compilation, réutilisable pour embarquer des cycles SpectraSense de référence.
@@ -189,8 +189,8 @@ Chaque étape valide un seul maillon ; on ne passe à la suivante que si son cri
 
 1. **Composant externe vide** qui affiche « hello » dans les logs. Critère : compilation et mise à jour OTA de la carte de test réussies.
 2. **`train.py` et `export.py`**. Critère : l'autocontrôle d'`export.py` passe ; précision 14×14 notée.
-3. **Moteur C++ sur PC**. Critère : tous les étages conformes sur les 20 images, et le bug volontaire détecté au bon étage.
-4. **Sur l'ESP avec les images embarquées**. Critère : Autotest à 20/20, temps d'inférence mesuré.
+3. **Moteur C++ sur PC**. Critère : tous les étages conformes sur les 24 images, et le bug volontaire détecté au bon étage.
+4. **Sur l'ESP avec les images embarquées**. Critère : Autotest à 24/24, temps d'inférence mesuré.
 5. **Envoi depuis `send.py`**. Critère : sur des images hors du jeu embarqué, même chiffre prédit qu'en Python.
 6. **Bonus** : quantification int8, puis un CNN 2D qui prépare le CNN 1D de SpectraSense.
 
@@ -204,7 +204,7 @@ Chaque étape valide un seul maillon ; on ne passe à la suivante que si son cri
 | Perte de précision en 7×7 | Quelques points |  |
 | Écart sur l'entrée réduite | Nul |  |
 | Écart couche cachée et sortie (PC) | De l'ordre de 1e-7 |  |
-| Chiffre prédit, C vs Python | Identique sur 20/20 |  |
+| Chiffre prédit, C vs Python | Identique sur 24/24 |  |
 | Temps d'inférence \[196, 30, 10\] sur ESP | Quelques centaines de µs, première inférence plus lente (cache flash froid) |  |
 
 **Correspondance avec SpectraSense**
