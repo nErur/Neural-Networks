@@ -2,7 +2,7 @@
 
     python esp32\\python\\send.py                     # 10 images du jeu de test MNIST, tirées au hasard
     python esp32\\python\\send.py --index 9729 4601   # images précises du jeu de test
-    python esp32\\python\\send.py --png chiffre.png   # une image à toi (fond clair ou foncé)
+    python esp32\\python\\send.py --png chiffre.png   # une image à toi (fond clair ou foncé), cadrée comme MNIST
 
 L'image part du PC sous forme brute (784 entiers 0..255, ligne par ligne), par
 l'action API « classify » : c'est l'ESP qui fait le prétraitement et l'inférence.
@@ -56,13 +56,46 @@ def predire(couches, meta, image_u8):
     return int(a.argmax()), float(a.max())
 
 
-def image_png(chemin):
-    """Image quelconque -> 28×28 uint8 au format MNIST (chiffre clair sur fond noir)."""
+def image_png(chemin, cadrage="mnist"):
+    """Image quelconque -> 28×28 uint8 au format MNIST : chiffre clair sur fond noir.
+
+    cadrage "simple" : réduction directe en 28×28.
+    cadrage "mnist"  : comme la préparation de MNIST (LeCun et al.) : fond ramené
+    à 0, chiffre réduit pour tenir dans 20×20 en gardant ses proportions, puis
+    placé de sorte que son centre de masse tombe au centre de l'image 28×28.
+    """
     from PIL import Image
-    im = np.asarray(Image.open(chemin).convert("L").resize((28, 28), Image.LANCZOS), dtype=np.uint8)
-    if im.mean() > 127:                               # fond clair : on inverse
-        im = 255 - im
-    return im
+    im = np.asarray(Image.open(chemin).convert("L"), dtype=np.float64)
+    bord = np.median(np.r_[im[0], im[-1], im[:, 0], im[:, -1]])
+    if bord > 127:                                    # fond clair : on inverse
+        im, bord = 255 - im, 255 - bord
+    if cadrage == "simple":
+        return np.asarray(Image.fromarray(im.astype(np.uint8)).resize((28, 28), Image.LANCZOS))
+
+    im = np.clip(im - bord, 0, None)                  # fond à 0
+    im = 255 * im / im.max()                          # contraste étiré jusqu'à 255
+    lignes, cols = np.where(im > 0.1 * 255)           # boîte englobant le chiffre
+    im = im[lignes.min():lignes.max() + 1, cols.min():cols.max() + 1]
+    h, w = im.shape
+    k = 20.0 / max(h, w)
+    petit = Image.fromarray(im.astype(np.uint8)).resize(
+        (max(1, round(w * k)), max(1, round(h * k))), Image.LANCZOS)
+    petit = np.asarray(petit, dtype=np.float64)
+    yy, xx = np.indices(petit.shape)                  # centre de masse du chiffre réduit
+    cy, cx = (yy * petit).sum() / petit.sum(), (xx * petit).sum() / petit.sum()
+    y0 = int(np.clip(round(14 - cy), 0, 28 - petit.shape[0]))
+    x0 = int(np.clip(round(14 - cx), 0, 28 - petit.shape[1]))
+    sortie = np.zeros((28, 28))
+    sortie[y0:y0 + petit.shape[0], x0:x0 + petit.shape[1]] = petit
+    return np.clip(np.round(sortie), 0, 255).astype(np.uint8)
+
+
+def apercu(images, chemin):
+    """Planche des images 28×28 telles qu'envoyées (agrandies ×8), pour vérifier le cadrage."""
+    from PIL import Image
+    planche = np.concatenate([np.pad(im, 1, constant_values=128) for _, im, *_ in images], axis=1)
+    Image.fromarray(planche).resize((planche.shape[1] * 8, planche.shape[0] * 8), Image.NEAREST).save(chemin)
+    print("Aperçu des images envoyées :", chemin)
 
 
 # ---------------------------------------------------------------- API ESPHome
@@ -145,6 +178,10 @@ def main():
     p.add_argument("--n", type=int, default=10, help="nombre d'images tirées au hasard")
     p.add_argument("--graine", type=int, default=None)
     p.add_argument("--png", nargs="+", help="images à envoyer (converties en 28×28)")
+    p.add_argument("--cadrage", choices=("mnist", "simple"), default="mnist",
+                   help="préparation des images --png (défaut : comme MNIST)")
+    p.add_argument("--apercu", default=None, help="enregistre une planche PNG des images envoyées")
+    p.add_argument("--sans-carte", action="store_true", help="prédiction Python seulement, sans l'ESP")
     p.add_argument("--pause", type=float, default=0.5, help="secondes entre deux images")
     p.add_argument("--modele", default=MODELE)
     args = p.parse_args()
@@ -153,7 +190,7 @@ def main():
     images = []
     if args.png:
         for chemin in args.png:
-            im = image_png(chemin)
+            im = image_png(chemin, args.cadrage)
             images.append((os.path.basename(chemin)[:14], im, None) + predire(couches, meta, im))
     else:
         img, lab = charger_u8()["test"]
@@ -161,6 +198,13 @@ def main():
         for i in idx:
             images.append(("test[%d]" % i, img[i], int(lab[i])) + predire(couches, meta, img[i]))
 
+    if args.apercu:
+        apercu(images, args.apercu)
+    if args.sans_carte:
+        for nom, _, etiquette, py_pred, py_conf in images:
+            print("%-14s étiquette %s  Python %d (%5.1f %%)" % (nom, "?" if etiquette is None else etiquette,
+                                                             py_pred, 100 * py_conf))
+        return 0
     print("Modèle Python : %s, carte : %s" % (meta["nom"], args.host))
     resultats = asyncio.run(envoyer(args, images))
     print("\n%d/%d prédictions identiques entre l'ESP et Python" % (sum(resultats), len(resultats)))

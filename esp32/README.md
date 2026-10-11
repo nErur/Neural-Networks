@@ -75,7 +75,8 @@ ligne `cnn_test_api_key: "..."` dans `esphome\secrets.yaml` (ignoré par git, m�
 
     python esp32\python\send.py                       # 10 images de test au hasard
     python esp32\python\send.py --index 9729 4601     # images précises
-    python esp32\python\send.py --png chiffre.png     # tes propres images
+    python esp32\python\send.py --png chiffre.png     # tes propres images, cadrées comme MNIST
+    python esp32\python\send.py --png chiffre.png --sans-carte --apercu apercu.png   # vérifier le cadrage
     python esp32\python\send.py --host 192.168.68.124 # si cnn-test.local ne répond pas
 
 L'image brute (784 entiers) passe par l'action API `classify` ; l'ESP fait prétraitement et inférence.

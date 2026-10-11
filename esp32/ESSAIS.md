@@ -49,6 +49,18 @@ et l'ESP (24/24 à chaque fois). C'est le seul étage où l'on exige l'égalité
 
 → **14×14 retenu** : 4 fois moins de poids pour une perte inférieure au bruit d'un essai (≈ 0,5 point).
 
+**Chiffre manuscrit (photo d'un 7, 220×207)** : le cadrage compte plus que tout.
+
+| Préparation | Probabilité du 7 |
+|---|---|
+| Réduction directe en 28×28 | 31,8 % (3 : 31,2 %, 2 : 30,0 %) |
+| Même chose, contraste étiré à 255 | 31,8 % (le contraste n'y est pour rien) |
+| Cadrage MNIST : boîte 20×20, centre de masse au centre | **98,7 %** |
+| Cadrage MNIST décalé de 1 / 2 / 3 px vers la gauche | 94,5 / 54,4 / 16,0 % (prédit 2) |
+
+→ `send.py --png` cadre comme MNIST par défaut. Un perceptron ne sait pas qu'un chiffre décalé reste
+le même chiffre : 3 pixels suffisent à le tromper. C'est ce que corrigent les convolutions (CNN).
+
 ---
 
 ## 3. Exactitude, du PC jusqu'à l'ESP
