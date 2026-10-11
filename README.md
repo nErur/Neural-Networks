@@ -34,3 +34,7 @@ Comparer avec l'original : `git diff d3a694a da0a789 -- nielsen/src`.
 ## ESP32
 
 `esp32/` = déploiement d'un petit réseau MNIST sur ESP32 via ESPHome, banc d'essai du pipeline SpectraSense. Plan : `esp32/PLAN.md`.
+
+## Banc d'essai
+
+`banc/` = entraîner, comparer et choisir des réseaux pour l'ESP32 (MNIST, puis SpectraSense). Notebook : `banc/banc_esp.ipynb`. Voir `banc/README.md`.

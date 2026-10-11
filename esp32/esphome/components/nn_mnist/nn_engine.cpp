@@ -60,10 +60,19 @@ void matvec(const Layer &layer, const float *in, float *out) {
 }
 
 void activate(const Layer &layer, float *v) {
-  if (layer.activation == Activation::kSigmoid)
-    sigmoid(v, layer.n_out);
-  else
-    softmax(v, layer.n_out);
+  switch (layer.activation) {
+    case Activation::kSigmoid:
+      sigmoid(v, layer.n_out);
+      break;
+    case Activation::kReLU:                                  // un maximum : quelques cycles
+      for (int j = 0; j < layer.n_out; j++) v[j] = v[j] > 0.0f ? v[j] : 0.0f;
+      break;
+    case Activation::kTanh:
+      for (int j = 0; j < layer.n_out; j++) v[j] = tanhf(v[j]);
+      break;
+    default:
+      softmax(v, layer.n_out);
+  }
 }
 
 void dense(const Layer &layer, const float *in, float *out) {

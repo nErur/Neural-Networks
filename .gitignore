@@ -9,3 +9,6 @@ __pycache__/
 /esp32/.venv-esphome/
 /esp32/esphome/.esphome/
 /esp32/esphome/secrets.yaml
+
+# Banc d'essai : résultats régénérables
+/banc/resultats/

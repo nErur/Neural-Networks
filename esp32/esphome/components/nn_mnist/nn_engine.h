@@ -8,7 +8,7 @@
 
 namespace nn {
 
-enum class Activation : uint8_t { kSigmoid, kSoftmax };
+enum class Activation : uint8_t { kSigmoid, kSoftmax, kReLU, kTanh };
 
 // Une couche dense : z = W·a + b, W rangé ligne par ligne,
 // le poids de l'entrée k vers le neurone j est W[j * n_in + k].

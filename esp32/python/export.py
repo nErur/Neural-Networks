@@ -43,7 +43,15 @@ def softmax32(z):
     return (e / e.sum(axis=-1, keepdims=True)).astype(F32)
 
 
-ACTIV = {"sigmoide": sigmoide32, "softmax": softmax32}
+def relu32(z):
+    return np.maximum(z, F32(0)).astype(F32)
+
+
+def tanh32(z):
+    return np.tanh(z).astype(F32)
+
+
+ACTIV = {"sigmoide": sigmoide32, "softmax": softmax32, "relu": relu32, "tanh": tanh32}
 
 
 def forward32(couches, x):
@@ -161,7 +169,8 @@ def main():
     a = x_te.astype(np.float64)
     for i in range(n_couches):
         zz = a @ z["W%d" % i].T + z["b%d" % i]
-        a = 1 / (1 + np.exp(-zz)) if acts[i] == "sigmoide" else zz
+        a = {"sigmoide": lambda v: 1 / (1 + np.exp(-v)), "relu": lambda v: np.maximum(v, 0),
+             "tanh": np.tanh}.get(acts[i], lambda v: v)(zz)
     desaccords = int(np.sum(a.argmax(axis=1) != pred))
     print("Contrôle float32 : précision %.2f %%, %d prédiction(s) différente(s) de float64 sur 10 000"
           % (p32, desaccords))
@@ -193,7 +202,8 @@ def main():
     source = os.path.relpath(chemin, RACINE).replace("\\", "/")
 
     # --- model_weights.h
-    act_c = {"sigmoide": "nn::Activation::kSigmoid", "softmax": "nn::Activation::kSoftmax"}
+    act_c = {"sigmoide": "nn::Activation::kSigmoid", "softmax": "nn::Activation::kSoftmax",
+             "relu": "nn::Activation::kReLU", "tanh": "nn::Activation::kTanh"}
     out = [ENTETE % (quand, source), "#pragma once\n\n#include \"nn_engine.h\"\n\nnamespace nn_model {\n\n"]
     out.append("constexpr int kNumLayers = %d;\n" % n_couches)
     out.append("constexpr int kInputSize = %d;   // %d×%d\n" % (tailles[0], 28 // pre["facteur"], 28 // pre["facteur"]))

@@ -177,6 +177,19 @@ la carte attend plus qu'elle ne calcule, sauf si l'on entraîne des centaines de
   puis numpy float32, puis PyTorch carte ≈ numpy float32 (≈ 1e-6 après une époque).
 - La taille de mini-batch reste un hyperparamètre de qualité : m = 100 n'est que 2 fois plus rapide que m = 10.
 
+**Banc d'essai réalisé** (`banc/`, voir `banc/README.md`) : un seul moteur écrit pour numpy et PyTorch
+(plutôt que deux moteurs à tenir équivalents), R réseaux par paquet. Tests : Nielsen = numpy float64 à 2e-15
+après 300 mises à jour ; gradients conv1d / maxpool = différences finies (≤ 6e-8) ; paquet de 3 = 3 réseaux
+séparés (écart nul) ; PyTorch = numpy (1e-15 en float64, 1e-6 en float32). Coût ESP estimé
+pour [196, 30, 10] : 348 µs (mesuré : 344 µs).
+
+Signal 1D synthétique (motif à position aléatoire), 5 époques : conv1d 8 canaux + max-pooling,
+3 988 poids → **98,5 %** ; perceptron 32 neurones, 4 260 poids → 94,3 %. Même résultat qu'avec ton 7 manuscrit :
+la convolution reconnaît un motif où qu'il soit.
+
+**Moteur C++ de l'ESP** : ReLU et tanh ajoutées. Chaîne complète vérifiée avec un réseau ReLU
+entraîné par le banc : export, puis 24/24 au test du moteur (écart 1,9e-6, sous la tolérance de 1e-5).
+
 ---
 
 ## 6. Questions ouvertes
