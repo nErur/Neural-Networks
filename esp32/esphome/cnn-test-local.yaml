@@ -35,3 +35,19 @@ external_components:
 
 nn_mnist:
   id: mnist
+  prediction:
+    name: "Chiffre prédit"
+  confidence:
+    name: "Confiance"
+  margin:
+    name: "Marge"
+  inference_time:
+    name: "Temps d'inférence"
+  expected_label:
+    name: "Étiquette attendue"
+  max_error:
+    name: "Écart max vs Python"
+  model_id:
+    name: "Modèle"
+  autotest:
+    name: "Bilan autotest"

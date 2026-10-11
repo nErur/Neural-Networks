@@ -56,6 +56,17 @@ Depuis la racine du dépôt, venv Nielsen activé :
 - Demande g++ ou clang++ dans le PATH. Sous Windows : MSYS2 (`pacman -S mingw-w64-ucrt-x86_64-gcc`),
   puis ajouter `C:\msys64\ucrt64\bin` au PATH.
 
+## Étape 4 — le réseau sur l'ESP
+
+Après push, recopier `esphome/cnn-test.yaml` dans la config de la carte dans HA, puis Install (OTA).
+
+- Boutons : « Image de test suivante » (parcourt les 24 images embarquées), « Lancer l'autotest »
+  (les 24 d'un coup ; critère : « 24/24 conformes »).
+- Capteurs : chiffre prédit, confiance (%), marge (%), temps d'inférence (µs), étiquette attendue
+  et écart max vs Python (images de test seulement), modèle, bilan de l'autotest.
+- Action API `classify` (784 entiers 0..255) : utilisée par `send.py` à l'étape 5.
+- Détail étage par étage dans les logs (niveau DEBUG).
+
 ## Variante de secours : compilation sur le PC
 
     cd C:\AItools\Projets\Neural-Networks\esp32

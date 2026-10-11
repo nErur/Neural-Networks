@@ -16,6 +16,12 @@ logger:
 api:
   encryption:
     key: !secret cnn_test_api_key
+  actions:
+    - action: classify               # image brute 28×28, 784 entiers 0..255 (send.py)
+      variables:
+        image: int[]
+      then:
+        - lambda: id(mnist).submit_image(image);
 
 ota:
   - platform: esphome
@@ -43,8 +49,24 @@ external_components:
 
 nn_mnist:
   id: mnist
+  prediction:
+    name: "Chiffre prédit"
+  confidence:
+    name: "Confiance"
+  margin:
+    name: "Marge"
+  inference_time:
+    name: "Temps d'inférence"
+  expected_label:
+    name: "Étiquette attendue"
+  max_error:
+    name: "Écart max vs Python"
+  model_id:
+    name: "Modèle"
+  autotest:
+    name: "Bilan autotest"
 
-# Entités de diagnostic : vérifient la chaîne carte -> HA en attendant celles du réseau.
+# Entités de diagnostic de la carte.
 sensor:
   - platform: uptime
     name: "Uptime"
@@ -59,3 +81,11 @@ text_sensor:
 button:
   - platform: restart
     name: "Redémarrer"
+  - platform: template
+    name: "Image de test suivante"
+    on_press:
+      - lambda: id(mnist).next_test_image();
+  - platform: template
+    name: "Lancer l'autotest"
+    on_press:
+      - lambda: id(mnist).run_autotest();
