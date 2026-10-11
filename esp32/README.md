@@ -67,6 +67,20 @@ Après push, recopier `esphome/cnn-test.yaml` dans la config de la carte dans HA
 - Action API `classify` (784 entiers 0..255) : utilisée par `send.py` à l'étape 5.
 - Détail étage par étage dans les logs (niveau DEBUG).
 
+## Étape 5 — envoyer des images depuis le PC
+
+Une fois : `pip install aioesphomeapi` (venv activé), et la clé API de la carte en local, au choix :
+ligne `cnn_test_api_key: "..."` dans `esphome\secrets.yaml` (ignoré par git, même valeur que dans le
+`secrets.yaml` de HA), ou variable d'environnement `CNN_TEST_API_KEY`.
+
+    python esp32\python\send.py                       # 10 images de test au hasard
+    python esp32\python\send.py --index 9729 4601     # images précises
+    python esp32\python\send.py --png chiffre.png     # tes propres images
+    python esp32\python\send.py --host 192.168.68.124 # si cnn-test.local ne répond pas
+
+L'image brute (784 entiers) passe par l'action API `classify` ; l'ESP fait prétraitement et inférence.
+Le script compare la prédiction de l'ESP à celle de Python (float32, même modèle).
+
 ## Variante de secours : compilation sur le PC
 
     cd C:\AItools\Projets\Neural-Networks\esp32
