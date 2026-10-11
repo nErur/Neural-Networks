@@ -242,6 +242,26 @@ Export : float32 = float64 sur les 10 000 images de test ; 24/24 au test du mote
   (mesurée entre 7 150 et 9 000) → estimations 389,7 µs (mesuré 377,8) et 343,6 µs (mesuré 344).
 - Le profilage affichait « softmax » pour la couche ReLU : étiquette corrigée.
 
+**Autotest sur la carte** : 24/24 conformes, écart max 1,4e-6 (PC : 1,1e-6), 627 µs en moyenne
+(chemin « froid », comme par l'API ; 378 µs au profilage). Première exécution de ReLU sur l'ESP validée.
+
+**Confiance** (même réseau sur le PC ; « Python » dans l'autotest = prédiction du PC, pas la vraie classe).
+Les 4 images difficiles : 9009 (un 7) → 2 à 100 % ; 3558 (un 5) → 0 à 100 % ; 1754 (un 7) → 7 à 44 %
+(3 à 44 %) ; 5870 (un 0) → 0 à 50 % (9 à 48 %). Deux justes mais hésitantes, deux fausses et sûres d'elles.
+Sur la validation, en ne répondant qu'aux exemples les plus sûrs (même couverture pour tous) :
+
+| Réseau | Erreurs sur 10 000 | Fausses à 95 % de couverture | à 90 % | à 80 % |
+|---|---|---|---|---|
+| D30 sigmoïde (déployé avant) | 311 | 103 | 38 | 14 |
+| D50 sigmoïde | 197 | 47 | 17 | 5 |
+| D50 ReLU (déployé) | 204 | 54 | 19 | 11 |
+
+- La taille compte le plus : à 90 % de couverture, D50 fait 2 fois moins d'erreurs que D30.
+- ReLU est plus sûr de lui que la sigmoïde, y compris quand il se trompe (48 erreurs au-dessus de
+  90 % de confiance, contre 27) : à couverture égale, il lui faut un seuil plus haut (0,966 contre 0,938
+  pour 90 %). Pour SpectraSense : le seuil de refus se règle sur la validation, réseau par réseau,
+  jamais à une valeur fixe.
+
 ---
 
 ## 7. Questions ouvertes
