@@ -192,7 +192,45 @@ entraîné par le banc : export, puis 24/24 au test du moteur (écart 1,9e-6, so
 
 ---
 
-## 6. Questions ouvertes
+## 6. Choix du réseau déployé — lots d'hyperparamètres (11 octobre)
+
+Tâche MNIST 14×14 (facteur 2), une couche cachée, 30 époques, m = 10, planning cosinus.
+Sélection sur la **validation** (10 000 images), 3 graines par réglage ; moyenne ± écart-type entre graines.
+
+**Lot 1** — 4 tailles (10, 20, 30, 50) × sigmoïde / ReLU × η ∈ {0,5 ; 1 ; 2 ; 3} × λ ∈ {0 ; 2 ; 5},
+288 réseaux, 8 paquets de 36 sur la TITAN (≈ 4,4 s par époque et par paquet, ≈ 18 min en tout).
+
+| Réseau | Meilleur réglage | Validation | ESP estimé | Poids |
+|---|---|---|---|---|
+| D50 sigmoïde | η = 2, λ = 2 | **98,05 ± 0,05** | 475 µs | 10 360 (40 Ko) |
+| D50 ReLU | η = 0,5, λ = 5 | 97,90 ± 0,05 | 385 µs | 10 360 (40 Ko) |
+| D30 sigmoïde | η = 3, λ = 2 | 97,59 ± 0,08 | 348 µs | 6 220 (24 Ko) |
+| D30 ReLU | η = 0,5, λ = 5 | 97,27 ± 0,17 | 294 µs | 6 220 (24 Ko) |
+
+- Sigmoïde : optimum à l'intérieur de la grille. ReLU : optimum **au bord** (plus petit η, plus grand λ),
+  et réseaux morts dès η ≥ 2 (10,6 % = toujours la même réponse) : dérivée 1 au lieu de ≤ 0,25,
+  donc des pas ~4 fois plus grands à η égal. → lot 2.
+- Vitesse : ReLU ne gagne que ~20 % (les 50 sigmoïdes ≈ 91 µs ; le produit matrice × vecteur,
+  9 800 mult.-add. ≈ 216 µs, ne change pas).
+
+**Lot 2** — ReLU seulement, D30 et D50, η ∈ {0,1 ; 0,2 ; 0,3 ; 0,5} × λ ∈ {5 ; 10 ; 20}, 66 réseaux nouveaux.
+Prédiction : optimum ReLU vers η ≈ 0,2–0,3 avec λ plus grand (la décroissance des poids par pas vaut ηλ/n).
+Mesure : **plateau**. D50 ReLU entre 97,54 et 97,90 sur toute la zone, η = 0,2–0,5 et λ = 5–10 dans
+0,1 point (l'écart entre graines) ; D30 ReLU plat vers 97,0–97,3. Le réglage η = 0,5, λ = 5 était déjà le bon.
+
+**Décision** : D50 ReLU, η = 0,5, λ = 5, graine 3 (`c5ccb25201`, validation 97,96 %).
+0,15 point de moins que la sigmoïde (~15 images sur 10 000), accepté : ReLU est l'activation des
+couches de convolution de SpectraSense, et c'est sa première exécution sur l'ESP.
+**Test (mesuré une seule fois) : 97,80 %**, contre 96,86 % pour le [196, 30, 10] sigmoïde déployé jusqu'ici.
+Export : float32 = float64 sur les 10 000 images de test ; 24/24 au test du moteur sur PC
+(écart max 1,1e-6), mutations détectées ; compilation Xtensa : 41,5 Ko de poids et d'images de test.
+
+Prédiction sur la carte : ≈ 385 µs (ReLU estimée à 4 cycles par neurone, jamais mesurée). À mesurer :
+autotest (24/24 attendu, écart ~1e-6), bouton « Profilage » (coût réel de ReLU).
+
+---
+
+## 7. Questions ouvertes
 
 - Les activations sont un peu plus lentes en `-O2` (sigmoïde 391 → 436 cycles par neurone, softmax 379 → 453),
   alors que `expf` coûte toujours ~300 cycles. Non expliqué (code de `expf` relu en flash ?). Enjeu : ~10 µs.
