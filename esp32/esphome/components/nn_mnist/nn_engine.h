@@ -1,8 +1,9 @@
 #pragma once
-// Moteur d'inférence pur (aucune dépendance à ESPHome) : types partagés.
-// Étape 1 : seuls les types, utilisés par model_weights.h (généré par export.py).
-// Étape 3 : ajout de preprocess(), dense() et forward().
+// Moteur d'inférence pur : forward pass d'un réseau dense, en float32.
+// Aucune dépendance à ESPHome ni à Arduino, aucune allocation dynamique :
+// le même code est compilé sur le PC (esp32/tests) et sur l'ESP.
 
+#include <cstddef>
 #include <cstdint>
 
 namespace nn {
@@ -29,5 +30,27 @@ struct Model {
   uint8_t factor;
   uint16_t divisor;
 };
+
+struct Result {
+  uint8_t prediction;     // indice de la plus grande sortie
+  float confidence;       // plus grande sortie (probabilité si softmax)
+  float margin;           // écart entre les deux plus grandes sorties
+};
+
+// Taille de l'entrée du réseau après prétraitement : (raw_side / factor)².
+size_t input_size(const Model &m);
+
+// Image brute (raw_side² octets, ligne par ligne) -> entrée du réseau.
+// Somme entière exacte puis une seule division : identique au bit près à numpy.
+void preprocess(const Model &m, const uint8_t *image, float *out);
+
+// Une couche : out = activation(W·in + b). in et out ne doivent pas se chevaucher.
+void dense(const Layer &layer, const float *in, float *out);
+
+// Toutes les couches. buf_a et buf_b : tampons de travail d'au moins
+// max(n_out) floats chacun. trace (facultatif, nullptr sur l'ESP) : un pointeur
+// par couche, où recopier la sortie de cette couche pour la comparer aux références.
+Result forward(const Model &m, const float *input, float *buf_a, float *buf_b,
+               float *const *trace = nullptr);
 
 }  // namespace nn

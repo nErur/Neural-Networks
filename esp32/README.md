@@ -44,6 +44,18 @@ Depuis la racine du dépôt, venv Nielsen activé :
 - `export.py` écrit `model_weights.h` et `test_vectors.h` dans `esphome/components/nn_mnist/`
   et s'arrête si un autocontrôle échoue (float32 vs float64, disposition des poids).
 
+## Étape 3 — moteur C++ testé sur le PC
+
+    python esp32\tests\lancer_tests.py
+
+- Compile `tests/test_engine.cpp` avec le `nn_engine.cpp` du composant (pas une copie) et compare,
+  pour les 24 images de `test_vectors.h` : entrée réduite (identique au bit près), sortie de chaque
+  couche (écart < 1e-5), prédiction (identique à Python).
+- Puis « teste le test » : trois bugs introduits dans une copie du moteur (poids transposés,
+  division par 256, biais oublié) doivent chacun faire échouer le test au bon étage.
+- Demande g++ ou clang++ dans le PATH. Sous Windows : MSYS2 (`pacman -S mingw-w64-ucrt-x86_64-gcc`),
+  puis ajouter `C:\msys64\ucrt64\bin` au PATH.
+
 ## Variante de secours : compilation sur le PC
 
     cd C:\AItools\Projets\Neural-Networks\esp32
