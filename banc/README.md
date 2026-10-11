@@ -44,7 +44,7 @@ paramètres → préparation → essai interactif → analyses → comparaison �
 2. gradients dense / conv1d / maxpool = différences finies (écart relatif ≤ 6e-8) ;
 3. un paquet de 3 réseaux = 3 réseaux séparés (écart nul) ;
 4. PyTorch processeur = numpy (1e-15 en float64, 1e-6 en float32) ;
-5. PyTorch carte graphique = numpy float32 (à lancer sur le PC).
+5. PyTorch carte graphique (TITAN Xp) = numpy float32 (mesuré : 1,2e-6 en dense, 8e-7 en conv1d).
 
 À relancer après toute modification du moteur.
 
