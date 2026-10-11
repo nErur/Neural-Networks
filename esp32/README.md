@@ -1,6 +1,6 @@
 # ESP32 — MNIST via ESPHome
 
-Plan complet : `PLAN.md`. Carte de test `cnn-test` : ESP-WROOM-32, puce ESP32-D0WD-V3 rév. 3.1, flash 4 Mo,
+Plan complet : `PLAN.md`. Journal des essais et des choix : `ESSAIS.md`. Carte de test `cnn-test` : ESP-WROOM-32, puce ESP32-D0WD-V3 rév. 3.1, flash 4 Mo,
 USB-série CH340, MAC b0:a7:32:27:da:20 (`board: esp32dev`, framework ESP-IDF).
 
 ## Organisation
