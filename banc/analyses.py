@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from .config import completer
+from .couts import couts
 from .essai import charger_reseau, journal
 
 COULEURS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7"]
@@ -55,8 +56,9 @@ def frontiere(resultats=None, cout="us_esp", ax=None, etiquettes=True, log=None)
     cout : us_esp (temps estimé sur l'ESP), params, flash_ko, macs."""
     resultats = resultats if resultats is not None else journal()
     ax = ax or plt.subplots(figsize=(8, 5))[1]
-    pts = [(r["couts"][cout], r["validation"]) for r in resultats]
-    dep = [r["couts"]["deployable"] for r in resultats]
+    cs = [couts(r["config"]) for r in resultats]      # recalculés : suivent les coûts unitaires à jour
+    pts = [(c[cout], r["validation"]) for c, r in zip(cs, resultats)]
+    dep = [c["deployable"] for c in cs]
     x, y = np.array(pts).T if pts else ([], [])
     ax.scatter([a for a, d in zip(x, dep) if d], [b for b, d in zip(y, dep) if d], s=18,
                color="#9a9890", label="essais")

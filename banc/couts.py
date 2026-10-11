@@ -11,11 +11,11 @@ FREQUENCE = 240e6
 CYCLES = {
     "mac": 5.3,          # multiplication-addition (mesuré : 5,2 à 5,5)
     "sigmoide": 436,     # expf + division (mesuré)
-    "softmax": 453,      # par neurone (mesuré)
+    "softmax": 453,      # par neurone, sortie de 10 (mesuré : 453 à 532)
     "tanh": 450,         # estimé (tanhf ≈ expf + division)
-    "relu": 4,           # estimé (un maximum)
+    "relu": 46,          # mesuré sur 50 neurones, appel compris (estimé à 4 avant mesure)
     "max": 3,            # estimé, par comparaison du max-pooling
-    "fixe": 9000,        # mesuré : appel, recherche du maximum, chronométrage (~37 µs)
+    "fixe": 8000,        # mesuré : appel, recherche du maximum, chronométrage (7 150 à 9 000, ~33 µs)
 }
 # ce que le moteur C++ de l'ESP sait exécuter aujourd'hui
 DEPLOYABLE = {"types": {"dense"}, "activations": {"sigmoide", "relu", "tanh", "softmax"}}

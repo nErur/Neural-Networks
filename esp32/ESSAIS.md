@@ -225,12 +225,30 @@ couches de convolution de SpectraSense, et c'est sa première exécution sur l'E
 Export : float32 = float64 sur les 10 000 images de test ; 24/24 au test du moteur sur PC
 (écart max 1,1e-6), mutations détectées ; compilation Xtensa : 41,5 Ko de poids et d'images de test.
 
-Prédiction sur la carte : ≈ 385 µs (ReLU estimée à 4 cycles par neurone, jamais mesurée). À mesurer :
-autotest (24/24 attendu, écart ~1e-6), bouton « Profilage » (coût réel de ReLU).
+**Sur la carte** (bouton « Profilage », moyenne sur 24 images, poids en RAM). Prédiction : ≈ 385 µs.
+
+| Étage | Mesuré | Estimé par le banc |
+|---|---|---|
+| Prétraitement | 94,8 µs | 100,5 µs |
+| Couche 0, produit (9 800 mult.-add.) | 210,1 µs, 5,1 cycles / mult.-add. | 216,4 µs |
+| Couche 0, ReLU (50 neurones) | 9,5 µs, **46 cycles / neurone** | 0,8 µs (4 cycles) |
+| Couche 1, produit (500 mult.-add.) | 11,5 µs, 5,5 cycles / mult.-add. | 11,0 µs |
+| Couche 1, softmax (10 neurones) | 22,2 µs, 532 cycles / neurone | 18,9 µs |
+| **Total** | **377,8 µs** (somme des étages 348,0) | 385,1 µs |
+
+- Prédiction tenue à 2 % près ; +34 µs par rapport au [196, 30, 10] sigmoïde (344 µs) pour +0,94 point au test.
+- ReLU coûte 46 cycles par neurone au lieu des 4 estimés, mais ne pèse que 9,5 µs contre ~91 µs pour
+  50 sigmoïdes. Coûts unitaires du banc recalés (`banc/couts.py`) : ReLU 46, partie fixe 8 000 cycles
+  (mesurée entre 7 150 et 9 000) → estimations 389,7 µs (mesuré 377,8) et 343,6 µs (mesuré 344).
+- Le profilage affichait « softmax » pour la couche ReLU : étiquette corrigée.
 
 ---
 
 ## 7. Questions ouvertes
+
+- ReLU : 46 cycles par neurone pour une comparaison et une copie (≈ 8 instructions). Hypothèse : le code
+  d'`activate` est relu en flash à chaque image (défauts de cache, ~155 cycles chacun), comme la
+  softmax passée de 453 à 532 cycles. À vérifier en plaçant le moteur en IRAM. Enjeu : < 10 µs.
 
 - Les activations sont un peu plus lentes en `-O2` (sigmoïde 391 → 436 cycles par neurone, softmax 379 → 453),
   alors que `expf` coûte toujours ~300 cycles. Non expliqué (code de `expf` relu en flash ?). Enjeu : ~10 µs.

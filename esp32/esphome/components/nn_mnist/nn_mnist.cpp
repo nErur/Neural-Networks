@@ -317,9 +317,12 @@ void NnMnist::profile_report_(bool stages) {
     somme += mv + ac;
     ESP_LOGI(TAG, "  couche %d, produit (%5d mult.-add.) : %7u cycles = %6.1f µs, %.1f cycles par mult.-add.", l,
              L.n_in * L.n_out, (unsigned) mv, us(mv), (float) mv / (L.n_in * L.n_out));
-    ESP_LOGI(TAG, "  couche %d, %s (%2d neurones)   : %7u cycles = %6.1f µs, %.0f cycles par neurone", l,
-             L.activation == nn::Activation::kSigmoid ? "sigmoïde" : "softmax ", L.n_out, (unsigned) ac, us(ac),
-             (float) ac / L.n_out);
+    const char *nom = L.activation == nn::Activation::kSigmoid ? "sigmoïde"
+                      : L.activation == nn::Activation::kReLU  ? "ReLU    "
+                      : L.activation == nn::Activation::kTanh  ? "tanh    "
+                                                               : "softmax ";
+    ESP_LOGI(TAG, "  couche %d, %s (%2d neurones)   : %7u cycles = %6.1f µs, %.0f cycles par neurone", l, nom,
+             L.n_out, (unsigned) ac, us(ac), (float) ac / L.n_out);
   }
   ESP_LOGI(TAG, "  total mesuré : %u cycles = %.1f µs (somme des étages : %.1f µs)", (unsigned) (prof_total_ / N),
            us(prof_total_ / N), us(somme));
