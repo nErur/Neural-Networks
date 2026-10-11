@@ -101,3 +101,7 @@ button:
     name: "Lancer l'autotest"
     on_press:
       - lambda: id(mnist).run_autotest();
+  - platform: template
+    name: "Profilage"
+    on_press:
+      - lambda: id(mnist).run_profile();

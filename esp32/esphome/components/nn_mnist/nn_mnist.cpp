@@ -8,6 +8,10 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_ESP32
+#include "esp_cpu.h"
+#endif
+
 #include "model_weights.h"
 #include "nn_engine.h"
 
@@ -30,6 +34,15 @@ static float input_[::nn_model::kInputSize];
 static float buf_a_[::nn_model::kMaxWidth];
 static float buf_b_[::nn_model::kMaxWidth];
 static float layer_out_[::nn_model::kNumLayers][::nn_model::kMaxWidth];
+
+// Horloge du profilage : compteur de cycles du processeur (sur l'ESP32).
+static uint32_t cycles() {
+#ifdef USE_ESP32
+  return esp_cpu_get_cycle_count();
+#else
+  return micros();
+#endif
+}
 
 // Écart maximal entre une sortie et sa référence (images de test seulement).
 static float max_abs_diff(const float *a, const float *b, int n) {
@@ -105,7 +118,25 @@ void NnMnist::run_autotest() {
 #endif
 }
 
+void NnMnist::run_profile() {
+#ifdef USE_NN_MNIST_TEST_VECTORS
+  if (profile_index_ >= 0 || autotest_index_ >= 0) return;
+  profile_index_ = 0;
+  prof_pre_ram_ = prof_pre_flash_ = prof_total_ = 0;
+  for (int l = 0; l < 8; l++) prof_matvec_[l] = prof_act_[l] = 0;
+  prof_c0_ = cycles();
+  prof_u0_ = micros();
+#else
+  ESP_LOGW(TAG, "pas d'images de test embarquées (test_vectors: false)");
+#endif
+}
+
 void NnMnist::loop() {
+  if (profile_index_ >= 0) {                      // profilage : une étape par passage
+    signal_activity_();
+    profile_step_();
+    return;
+  }
   if (autotest_index_ >= 0) {                     // autotest : une image par passage
     signal_activity_();
     autotest_step_();
@@ -208,6 +239,121 @@ void NnMnist::autotest_step_() {
            g_model == &g_ram_model ? "RAM" : "flash");
   ESP_LOGI(TAG, "autotest : %s", bilan);
   if (autotest_ != nullptr) autotest_->publish_state(bilan);
+#endif
+}
+
+// ---------------------------------------------------------------- profilage
+
+// Produit scalaire identique à la boucle de nn_engine, jamais intégré par le
+// compilateur, pour mesurer le coût d'une multiplication-addition.
+static float __attribute__((noinline)) dot_(const float *w, const float *x, int n) {
+  float z = 0.0f;
+  for (int k = 0; k < n; k++) z += w[k] * x[k];
+  return z;
+}
+
+static volatile float g_sink;          // empêche le compilateur d'effacer les boucles
+
+void NnMnist::profile_step_() {
+#ifdef USE_NN_MNIST_TEST_VECTORS
+  const nn::Model &m = model();
+  if (profile_index_ < ::nn_model::kNumTestVectors) {
+    const ::nn_model::TestVector &v = ::nn_model::kTestVectors[profile_index_];
+    nn::Profile prof{cycles, {0}, {0}};
+
+    memcpy(image_, v.image, kRawSize);           // image en RAM, comme une image reçue par l'API
+    uint32_t t0 = cycles();
+    nn::preprocess(m, image_, input_);
+    const uint32_t t1 = cycles();
+    nn::forward(m, input_, buf_a_, buf_b_, nullptr, &prof);
+    const uint32_t t2 = cycles();
+    nn::preprocess(m, v.image, input_);          // même calcul, image lue en flash
+    const uint32_t t3 = cycles();
+
+    prof_pre_ram_ += t1 - t0;
+    prof_total_ += t2 - t0;
+    prof_pre_flash_ += t3 - t2;
+    for (int l = 0; l < m.n_layers && l < 8; l++) {
+      prof_matvec_[l] += prof.matvec[l];
+      prof_act_[l] += prof.activation[l];
+    }
+    profile_index_++;
+    return;
+  }
+  profile_report_();
+  profile_index_ = -1;
+#endif
+}
+
+void NnMnist::profile_report_() {
+#ifdef USE_NN_MNIST_TEST_VECTORS
+  const nn::Model &m = model();
+  const int N = ::nn_model::kNumTestVectors;
+  // fréquence réelle : cycles écoulés / µs écoulées depuis le début du profilage
+  const float mhz = (float) (cycles() - prof_c0_) / (float) (micros() - prof_u0_);
+  auto us = [mhz](uint32_t c) { return c / mhz; };
+
+  ESP_LOGI(TAG, "profilage : moyenne sur %d images, processeur à %.0f MHz, poids en %s", N, mhz,
+           g_model == &g_ram_model ? "RAM" : "flash");
+  ESP_LOGI(TAG, "  prétraitement, image en RAM   : %7u cycles = %6.1f µs", (unsigned) (prof_pre_ram_ / N),
+           us(prof_pre_ram_ / N));
+  ESP_LOGI(TAG, "  prétraitement, image en flash : %7u cycles = %6.1f µs", (unsigned) (prof_pre_flash_ / N),
+           us(prof_pre_flash_ / N));
+  uint32_t somme = prof_pre_ram_ / N;
+  for (int l = 0; l < m.n_layers && l < 8; l++) {
+    const nn::Layer &L = m.layers[l];
+    const uint32_t mv = prof_matvec_[l] / N, ac = prof_act_[l] / N;
+    somme += mv + ac;
+    ESP_LOGI(TAG, "  couche %d, produit (%5d mult.-add.) : %7u cycles = %6.1f µs, %.1f cycles par mult.-add.", l,
+             L.n_in * L.n_out, (unsigned) mv, us(mv), (float) mv / (L.n_in * L.n_out));
+    ESP_LOGI(TAG, "  couche %d, %s (%2d neurones)   : %7u cycles = %6.1f µs, %.0f cycles par neurone", l,
+             L.activation == nn::Activation::kSigmoid ? "sigmoïde" : "softmax ", L.n_out, (unsigned) ac, us(ac),
+             (float) ac / L.n_out);
+  }
+  ESP_LOGI(TAG, "  total mesuré : %u cycles = %.1f µs (somme des étages : %.1f µs)", (unsigned) (prof_total_ / N),
+           us(prof_total_ / N), us(somme));
+
+  // ---- coûts unitaires : chaque opération moins une boucle témoin identique
+  const int R = 1000;
+  volatile float diviseur = 1020.0f;              // volatile : pas de remplacement par une multiplication
+  float acc = 0.0f;
+  uint32_t t0 = cycles();
+  for (int i = 0; i < R; i++) acc += (float) (i & 255) * diviseur;
+  const uint32_t base_mul = cycles() - t0;
+  t0 = cycles();
+  for (int i = 0; i < R; i++) acc += (float) (i & 255) / diviseur;
+  const uint32_t t_div = cycles() - t0;
+  t0 = cycles();
+  for (int i = 0; i < R; i++) acc += -0.05f * (float) (i & 63);
+  const uint32_t base_exp = cycles() - t0;
+  t0 = cycles();
+  for (int i = 0; i < R; i++) acc += expf(-0.05f * (float) (i & 63));
+  const uint32_t t_exp = cycles() - t0;
+  g_sink = acc;
+
+  const int n = m.layers[0].n_in;                 // une ligne de la couche 0 (196 poids)
+  const float *w_flash = ::nn_model::kLayers[0].W;   // toujours en flash
+  const float *w_ram = m.layers[0].W;             // en RAM si weights_in_ram
+  const int P = 50;
+  t0 = cycles();
+  g_sink = dot_(w_flash + 29 * n, input_, n);     // dernière ligne : sans doute hors du cache
+  const uint32_t t_flash_froid = cycles() - t0;
+  t0 = cycles();
+  for (int p = 0; p < P; p++) g_sink = dot_(w_flash + 29 * n, input_, n);
+  const uint32_t t_flash_chaud = cycles() - t0;
+  t0 = cycles();
+  for (int p = 0; p < P; p++) g_sink = dot_(w_ram, input_, n);
+  const uint32_t t_ram = cycles() - t0;
+
+  ESP_LOGI(TAG, "coûts unitaires (cycles) :");
+  ESP_LOGI(TAG, "  division float       : %.0f", (float) ((int) t_div - (int) base_mul) / R);
+  ESP_LOGI(TAG, "  expf                 : %.0f", (float) ((int) t_exp - (int) base_exp) / R);
+  ESP_LOGI(TAG, "  mult.-add., poids en RAM                : %.1f", (float) t_ram / (P * n));
+  ESP_LOGI(TAG, "  mult.-add., poids en flash, 1er passage : %.1f", (float) t_flash_froid / n);
+  ESP_LOGI(TAG, "  mult.-add., poids en flash, ensuite     : %.1f", (float) t_flash_chaud / (P * n));
+  if (m.layers[0].W == w_flash) {
+    ESP_LOGI(TAG, "  (poids du modèle en flash : RAM et flash mesurent ici la même chose)");
+  }
 #endif
 }
 

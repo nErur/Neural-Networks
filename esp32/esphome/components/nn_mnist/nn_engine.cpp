@@ -42,7 +42,7 @@ static void softmax(float *v, int n) {
   for (int j = 0; j < n; j++) v[j] /= sum;
 }
 
-void dense(const Layer &layer, const float *in, float *out) {
+void matvec(const Layer &layer, const float *in, float *out) {
   const float *w = layer.W;
   for (int j = 0; j < layer.n_out; j++) {
     float z = layer.b[j];
@@ -50,20 +50,38 @@ void dense(const Layer &layer, const float *in, float *out) {
     out[j] = z;
     w += layer.n_in;                                         // ligne suivante : j * n_in
   }
+}
+
+void activate(const Layer &layer, float *v) {
   if (layer.activation == Activation::kSigmoid)
-    sigmoid(out, layer.n_out);
+    sigmoid(v, layer.n_out);
   else
-    softmax(out, layer.n_out);
+    softmax(v, layer.n_out);
+}
+
+void dense(const Layer &layer, const float *in, float *out) {
+  matvec(layer, in, out);
+  activate(layer, out);
 }
 
 Result forward(const Model &m, const float *input, float *buf_a, float *buf_b,
-               float *const *trace) {
+               float *const *trace, Profile *profile) {
   const float *in = input;
   float *out = buf_a;
   int n = 0;
   for (int l = 0; l < m.n_layers; l++) {
     const Layer &layer = m.layers[l];
-    dense(layer, in, out);
+    if (profile != nullptr && l < kMaxProfiledLayers) {
+      const uint32_t t0 = profile->clock();
+      matvec(layer, in, out);
+      const uint32_t t1 = profile->clock();
+      activate(layer, out);
+      const uint32_t t2 = profile->clock();
+      profile->matvec[l] += t1 - t0;
+      profile->activation[l] += t2 - t1;
+    } else {
+      dense(layer, in, out);
+    }
     n = layer.n_out;
     if (trace != nullptr && trace[l] != nullptr)
       memcpy(trace[l], out, n * sizeof(float));

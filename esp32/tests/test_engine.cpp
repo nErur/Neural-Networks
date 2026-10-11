@@ -14,6 +14,9 @@ using namespace nn_model;
 
 static const float kTolerance = 1e-5f;
 
+static uint32_t g_tick = 0;
+static uint32_t fake_clock() { return ++g_tick; }    // horloge factice : le profilage ne doit rien changer
+
 static float max_abs_diff(const float *a, const float *b, int n) {
   float d = 0.0f;
   for (int i = 0; i < n; i++) d = fmaxf(d, fabsf(a[i] - b[i]));
@@ -35,7 +38,7 @@ int main() {
   float *trace[kNumLayers];
   for (int l = 0; l < kNumLayers; l++) trace[l] = layer_out[l];
 
-  int failures = 0, stage_fail[kNumLayers + 2] = {0};
+  int failures = 0, stage_fail[kNumLayers + 2] = {0}, profile_diff = 0;
   float worst[kNumLayers] = {0};
   for (int t = 0; t < kNumTestVectors; t++) {
     const TestVector &v = kTestVectors[t];
@@ -57,6 +60,18 @@ int main() {
     }
     if (r.prediction != v.py_pred) { ok = false; stage_fail[1 + kNumLayers]++; }
 
+    // le chemin profilé doit donner exactement les mêmes sorties
+    float out_p[kNumLayers][kMaxWidth];
+    float *trace_p[kNumLayers];
+    for (int l = 0; l < kNumLayers; l++) trace_p[l] = out_p[l];
+    nn::Profile prof{fake_clock, {0}, {0}};
+    nn::forward(m, v.input, buf_a, buf_b, trace_p, &prof);
+    for (int l = 0; l < m.n_layers; l++)
+      if (memcmp(out_p[l], layer_out[l], m.layers[l].n_out * sizeof(float)) != 0) {
+        ok = false;
+        profile_diff++;
+      }
+
     printf(" %3d %5d   %d    %d   %d   %-9s ", t, v.test_index, v.label, v.py_pred, r.prediction,
            bits ? "DIFFÉRENT" : "identique");
     for (int l = 0; l < m.n_layers; l++) printf("%.1e    ", diff[l]);
@@ -69,6 +84,7 @@ int main() {
   printf("\nÉchecs par étage : entrée %d", stage_fail[0]);
   for (int l = 0; l < m.n_layers; l++) printf(", couche %d %d", l, stage_fail[1 + l]);
   printf(", prédiction %d\n", stage_fail[1 + kNumLayers]);
+  printf("Chemin profilé identique au bit près : %s\n", profile_diff ? "NON" : "oui");
   printf("%s : %d/%d images conformes\n", failures ? "ÉCHEC" : "SUCCÈS",
          kNumTestVectors - failures, kNumTestVectors);
   return failures ? 1 : 0;

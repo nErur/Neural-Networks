@@ -46,6 +46,7 @@ class NnMnist : public Component {
   // traitée par loop() (une seule chaîne de traitement).
   void next_test_image();
   void run_autotest();
+  void run_profile();               // profilage : 24 images étage par étage + coûts unitaires
 
   // Image brute 28×28, 0..255, ligne par ligne (action API « classify »).
   // Modèle de fonction : accepte le type de tableau fourni par l'API.
@@ -71,6 +72,8 @@ class NnMnist : public Component {
   // Classe image_ ; test_index >= 0 : image de test, comparée aux références.
   void classify_(int test_index);
   void autotest_step_();            // une image de test par passage dans loop()
+  void profile_step_();             // idem pour le profilage
+  void profile_report_();
   void signal_activity_();
   bool copy_weights_to_ram_();
 
@@ -85,6 +88,12 @@ class NnMnist : public Component {
   int autotest_ok_{0};
   float autotest_worst_{0.0f};
   uint32_t autotest_us_{0};
+
+  // Profilage en cours : indice (-1 : aucun) et cumuls en cycles processeur.
+  int profile_index_{-1};
+  uint32_t prof_pre_ram_{0}, prof_pre_flash_{0}, prof_total_{0};
+  uint32_t prof_matvec_[8]{}, prof_act_[8]{};
+  uint32_t prof_c0_{0}, prof_u0_{0};      // pour mesurer la fréquence réelle
 
   uint8_t image_[kRawSize];   // tampons de calcul : dans nn_mnist.cpp (taille fixée par le modèle)
 

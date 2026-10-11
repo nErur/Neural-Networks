@@ -37,6 +37,16 @@ struct Result {
   float margin;           // écart entre les deux plus grandes sorties
 };
 
+// Profilage (facultatif) : forward() note le temps du produit matriciel et de
+// l'activation de chaque couche, mesuré avec l'horloge fournie (sur l'ESP : le
+// compteur de cycles du processeur). Les durées s'ajoutent d'un appel à l'autre.
+static const int kMaxProfiledLayers = 8;
+struct Profile {
+  uint32_t (*clock)();
+  uint32_t matvec[kMaxProfiledLayers];
+  uint32_t activation[kMaxProfiledLayers];
+};
+
 // Taille de l'entrée du réseau après prétraitement : (raw_side / factor)².
 size_t input_size(const Model &m);
 
@@ -45,12 +55,16 @@ size_t input_size(const Model &m);
 void preprocess(const Model &m, const uint8_t *image, float *out);
 
 // Une couche : out = activation(W·in + b). in et out ne doivent pas se chevaucher.
+// matvec puis activate, appelées par dense, sont séparées pour le profilage.
+void matvec(const Layer &layer, const float *in, float *out);
+void activate(const Layer &layer, float *v);
 void dense(const Layer &layer, const float *in, float *out);
 
 // Toutes les couches. buf_a et buf_b : tampons de travail d'au moins
 // max(n_out) floats chacun. trace (facultatif, nullptr sur l'ESP) : un pointeur
 // par couche, où recopier la sortie de cette couche pour la comparer aux références.
+// profile (facultatif) : durées par couche, voir Profile.
 Result forward(const Model &m, const float *input, float *buf_a, float *buf_b,
-               float *const *trace = nullptr);
+               float *const *trace = nullptr, Profile *profile = nullptr);
 
 }  // namespace nn
