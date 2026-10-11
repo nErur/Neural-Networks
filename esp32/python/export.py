@@ -194,7 +194,7 @@ def main():
 
     # --- model_weights.h
     act_c = {"sigmoide": "nn::Activation::kSigmoid", "softmax": "nn::Activation::kSoftmax"}
-    out = [ENTETE % (quand, source), "#pragma once\n\n#include \"nn_engine.h\"\n\nnamespace nn_mnist {\n\n"]
+    out = [ENTETE % (quand, source), "#pragma once\n\n#include \"nn_engine.h\"\n\nnamespace nn_model {\n\n"]
     out.append("constexpr int kNumLayers = %d;\n" % n_couches)
     out.append("constexpr int kInputSize = %d;   // %d×%d\n" % (tailles[0], 28 // pre["facteur"], 28 // pre["facteur"]))
     out.append("constexpr int kOutputSize = %d;\n" % tailles[-1])
@@ -209,13 +209,13 @@ def main():
     out.append("};\n\n")
     out.append("static const nn::Model kModel = {\n    \"%s\",\n    kNumLayers, kLayers, %d, %d, %d};\n\n"
                % (ident, pre["cote_brut"], pre["facteur"], pre["diviseur"]))
-    out.append("}  // namespace nn_mnist\n")
+    out.append("}  // namespace nn_model\n")
     with open(os.path.join(DOSSIER_COMPOSANT, "model_weights.h"), "w", encoding="utf-8", newline="\n") as f:
         f.write("".join(out))
 
     # --- test_vectors.h
     out = [ENTETE % (quand, source),
-           "#pragma once\n\n#include <cstdint>\n\n#include \"model_weights.h\"\n\nnamespace nn_mnist {\n\n",
+           "#pragma once\n\n#include <cstdint>\n\n#include \"model_weights.h\"\n\nnamespace nn_model {\n\n",
            "// Pour chaque image : image brute, entrée réduite, sortie de chaque couche,\n"
            "// toutes calculées en numpy float32 (référence à retrouver sur l'ESP).\n"
            "struct TestVector {\n  uint8_t label;          // étiquette MNIST\n"
@@ -236,7 +236,7 @@ def main():
         lc = ", ".join("kTv%dL%d" % (n, c) for c in range(n_couches))
         out.append("    {%d, %d, %d, kTv%dImage, kTv%dInput, {%s}},\n"
                    % (y_te[i], pred[i], i, n, n, lc))
-    out.append("};\nconstexpr int kNumTestVectors = %d;\n\n}  // namespace nn_mnist\n" % len(choix))
+    out.append("};\nconstexpr int kNumTestVectors = %d;\n\n}  // namespace nn_model\n" % len(choix))
     with open(os.path.join(DOSSIER_COMPOSANT, "test_vectors.h"), "w", encoding="utf-8", newline="\n") as f:
         f.write("".join(out))
 

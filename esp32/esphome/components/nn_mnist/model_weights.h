@@ -1,10 +1,10 @@
-// Généré par esp32/python/export.py le 2026-10-11 08:52 à partir de esp32/modeles/mnist_14x14_196_30_10.npz.
+// Généré par esp32/python/export.py le 2026-10-11 07:11 à partir de esp32/modeles/mnist_14x14_196_30_10.npz.
 // NE PAS MODIFIER À LA MAIN : relancer export.py.
 #pragma once
 
 #include "nn_engine.h"
 
-namespace nn_mnist {
+namespace nn_model {
 
 constexpr int kNumLayers = 2;
 constexpr int kInputSize = 196;   // 14×14
@@ -807,4 +807,4 @@ static const nn::Model kModel = {
     "mnist_14x14_196_30_10 | 879dbb55 | 96.86% | 2026-10-11",
     kNumLayers, kLayers, 28, 2, 1020};
 
-}  // namespace nn_mnist
+}  // namespace nn_model

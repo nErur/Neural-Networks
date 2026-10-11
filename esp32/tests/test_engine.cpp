@@ -10,7 +10,7 @@
 #include "nn_engine.h"
 #include "test_vectors.h"
 
-using namespace nn_mnist;
+using namespace nn_model;
 
 static const float kTolerance = 1e-5f;
 

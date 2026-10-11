@@ -18,13 +18,13 @@ namespace esphome {
 namespace nn_mnist {
 
 static const char *const TAG = "nn_mnist";
-static const nn::Model &model() { return ::nn_mnist::kModel; }
+static const nn::Model &model() { return ::nn_model::kModel; }
 
 // Tampons de calcul, dimensionnés à la compilation d'après le modèle : pas de malloc.
-static float input_[::nn_mnist::kInputSize];
-static float buf_a_[::nn_mnist::kMaxWidth];
-static float buf_b_[::nn_mnist::kMaxWidth];
-static float layer_out_[::nn_mnist::kNumLayers][::nn_mnist::kMaxWidth];
+static float input_[::nn_model::kInputSize];
+static float buf_a_[::nn_model::kMaxWidth];
+static float buf_b_[::nn_model::kMaxWidth];
+static float layer_out_[::nn_model::kNumLayers][::nn_model::kMaxWidth];
 
 // Écart maximal entre une sortie et sa référence (images de test seulement).
 static float max_abs_diff(const float *a, const float *b, int n) {
@@ -42,9 +42,9 @@ void NnMnist::dump_config() {
   ESP_LOGCONFIG(TAG, "nn_mnist :");
   ESP_LOGCONFIG(TAG, "  Modèle : %s", model().id);
   ESP_LOGCONFIG(TAG, "  Couches : %d, entrée %d, sortie %d", model().n_layers,
-                ::nn_mnist::kInputSize, ::nn_mnist::kOutputSize);
+                ::nn_model::kInputSize, ::nn_model::kOutputSize);
 #ifdef USE_NN_MNIST_TEST_VECTORS
-  ESP_LOGCONFIG(TAG, "  Images de test embarquées : %d", ::nn_mnist::kNumTestVectors);
+  ESP_LOGCONFIG(TAG, "  Images de test embarquées : %d", ::nn_model::kNumTestVectors);
 #else
   ESP_LOGCONFIG(TAG, "  Images de test embarquées : non (test_vectors: false)");
 #endif
@@ -53,8 +53,8 @@ void NnMnist::dump_config() {
 void NnMnist::next_test_image() {
 #ifdef USE_NN_MNIST_TEST_VECTORS
   pending_test_ = next_test_;
-  next_test_ = (next_test_ + 1) % ::nn_mnist::kNumTestVectors;
-  memcpy(image_, ::nn_mnist::kTestVectors[pending_test_].image, kRawSize);
+  next_test_ = (next_test_ + 1) % ::nn_model::kNumTestVectors;
+  memcpy(image_, ::nn_model::kTestVectors[pending_test_].image, kRawSize);
   pending_ = Pending::kImage;
 #else
   ESP_LOGW(TAG, "pas d'images de test embarquées (test_vectors: false)");
@@ -88,8 +88,8 @@ void NnMnist::signal_activity_() {
 
 void NnMnist::classify_(int test_index) {
   const nn::Model &m = model();
-  float *trace[::nn_mnist::kNumLayers];
-  for (int l = 0; l < ::nn_mnist::kNumLayers; l++) trace[l] = layer_out_[l];
+  float *trace[::nn_model::kNumLayers];
+  for (int l = 0; l < ::nn_model::kNumLayers; l++) trace[l] = layer_out_[l];
 
   // Chronométrage : prétraitement + forward, comme en usage réel.
   const uint32_t t0 = micros();
@@ -105,7 +105,7 @@ void NnMnist::classify_(int test_index) {
   float expected = NAN, error = NAN;
 #ifdef USE_NN_MNIST_TEST_VECTORS
   if (test_index >= 0) {
-    const ::nn_mnist::TestVector &v = ::nn_mnist::kTestVectors[test_index];
+    const ::nn_model::TestVector &v = ::nn_model::kTestVectors[test_index];
     const int n_in = (int) nn::input_size(m);
     int bits = 0;
     for (int i = 0; i < n_in; i++) bits += memcmp(&input_[i], &v.input[i], sizeof(float)) != 0;
@@ -138,14 +138,14 @@ void NnMnist::do_autotest_() {
   // limite d'environ 30 ms au-delà de laquelle ESPHome signale un blocage.
   const nn::Model &m = model();
   const int n_in = (int) nn::input_size(m);
-  float *trace[::nn_mnist::kNumLayers];
-  for (int l = 0; l < ::nn_mnist::kNumLayers; l++) trace[l] = layer_out_[l];
+  float *trace[::nn_model::kNumLayers];
+  for (int l = 0; l < ::nn_model::kNumLayers; l++) trace[l] = layer_out_[l];
 
   int ok_count = 0;
   float worst = 0.0f;
   uint32_t total_us = 0;
-  for (int t = 0; t < ::nn_mnist::kNumTestVectors; t++) {
-    const ::nn_mnist::TestVector &v = ::nn_mnist::kTestVectors[t];
+  for (int t = 0; t < ::nn_model::kNumTestVectors; t++) {
+    const ::nn_model::TestVector &v = ::nn_model::kTestVectors[t];
     const uint32_t t0 = micros();
     nn::preprocess(m, v.image, input_);
     const nn::Result r = nn::forward(m, input_, buf_a_, buf_b_, trace);
@@ -164,7 +164,7 @@ void NnMnist::do_autotest_() {
   }
   char bilan[96];
   snprintf(bilan, sizeof(bilan), "%d/%d conformes, écart max %.1e, %u µs en moyenne", ok_count,
-           ::nn_mnist::kNumTestVectors, worst, (unsigned) (total_us / ::nn_mnist::kNumTestVectors));
+           ::nn_model::kNumTestVectors, worst, (unsigned) (total_us / ::nn_model::kNumTestVectors));
   ESP_LOGI(TAG, "autotest : %s", bilan);
   if (autotest_ != nullptr) autotest_->publish_state(bilan);
 #endif
