@@ -1,6 +1,7 @@
 # ESP32 — MNIST via ESPHome
 
-Plan complet : `PLAN.md`. Carte de test : ESP-WROOM-32 (`board: esp32dev`, framework ESP-IDF).
+Plan complet : `PLAN.md`. Carte de test `cnn-test` : ESP-WROOM-32, puce ESP32-D0WD-V3 rév. 3.1, flash 4 Mo,
+USB-série CH340, MAC b0:a7:32:27:da:20 (`board: esp32dev`, framework ESP-IDF).
 
 ## Organisation
 
@@ -30,6 +31,18 @@ limité à ce dépôt. Noter sa date d'expiration.
 - Logs au démarrage : `[nn_mnist] hello depuis nn_mnist` ; bloc de config : `... (étape 0), v1`.
 - Changer `v1` en `v2` dans `components/nn_mnist/nn_mnist.cpp`, commit, push, Install (OTA) :
   `v2` doit apparaître.
+
+## Étape 1 — entraînement et export (PC)
+
+Depuis la racine du dépôt, venv Nielsen activé :
+
+    python esp32\python\train.py              # [196, 30, 10] sur 14×14 -> esp32\modeles\*.npz
+    python esp32\python\export.py             # dernier modèle 14×14 -> headers C++
+
+- `python/donnees.py` : chargement MNIST en uint8 + prétraitement de référence (la spécification).
+- `train.py --facteur 1` (28×28) ou `--facteur 4` (7×7) : modèles de comparaison.
+- `export.py` écrit `model_weights.h` et `test_vectors.h` dans `esphome/components/nn_mnist/`
+  et s'arrête si un autocontrôle échoue (float32 vs float64, disposition des poids).
 
 ## Variante de secours : compilation sur le PC
 

@@ -1,6 +1,6 @@
 # Config de la carte de test CNN (MNIST pour commencer), gérée par l'ESPHome de Home Assistant.
 # La config vivante est dans HA ; ce fichier en est la référence versionnée.
-# Les deux lignes marquées HA sont à garder telles que HA les a générées.
+# Identique à la config de HA : les secrets sont dans /config/esphome/secrets.yaml.
 esphome:
   name: cnn-test
   friendly_name: CNN test
@@ -15,17 +15,17 @@ logger:
 
 api:
   encryption:
-    key: "..."             # HA : clé générée à la création de l'appareil
+    key: !secret cnn_test_api_key
 
 ota:
   - platform: esphome
-    password: "..."        # HA : mot de passe généré à la création
 
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   ap:
     ssid: "cnn-test fallback"
+    password: !secret cnn_test_ap_password
 
 captive_portal:
 
@@ -43,3 +43,19 @@ external_components:
 
 nn_mnist:
   id: mnist
+
+# Entités de diagnostic : vérifient la chaîne carte -> HA en attendant celles du réseau.
+sensor:
+  - platform: uptime
+    name: "Uptime"
+  - platform: wifi_signal
+    name: "Signal Wi-Fi"
+    update_interval: 60s
+
+text_sensor:
+  - platform: version
+    name: "Version ESPHome"
+
+button:
+  - platform: restart
+    name: "Redémarrer"
