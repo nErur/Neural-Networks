@@ -39,6 +39,9 @@ class NnMnist : public Component {
   void set_activity_output(output::BinaryOutput *o) { activity_ = o; }
   void set_activity_duration(uint32_t ms) { activity_duration_ = ms; }
 
+  // Poids copiés en RAM au démarrage (sinon lus en flash, à travers le cache).
+  void set_weights_in_ram(bool v) { weights_in_ram_ = v; }
+
   // Les deux portes d'entrée : elles ne font que déposer une demande,
   // traitée par loop() (une seule chaîne de traitement).
   void next_test_image();
@@ -63,17 +66,25 @@ class NnMnist : public Component {
   }
 
  protected:
-  enum class Pending : uint8_t { kNone, kImage, kAutotest };
+  enum class Pending : uint8_t { kNone, kImage };
 
   // Classe image_ ; test_index >= 0 : image de test, comparée aux références.
   void classify_(int test_index);
-  void do_autotest_();
+  void autotest_step_();            // une image de test par passage dans loop()
   void signal_activity_();
+  bool copy_weights_to_ram_();
 
   Pending pending_{Pending::kNone};
   int pending_test_{-1};
   int next_test_{0};
   bool first_done_{false};
+  bool weights_in_ram_{false};
+
+  // Autotest en cours : indice de l'image suivante (-1 : aucun) et cumuls.
+  int autotest_index_{-1};
+  int autotest_ok_{0};
+  float autotest_worst_{0.0f};
+  uint32_t autotest_us_{0};
 
   uint8_t image_[kRawSize];   // tampons de calcul : dans nn_mnist.cpp (taille fixée par le modèle)
 

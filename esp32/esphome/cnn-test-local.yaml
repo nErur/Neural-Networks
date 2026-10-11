@@ -46,6 +46,7 @@ nn_mnist:
   id: mnist
   activity_output: led_d2
   activity_duration: 150ms
+  weights_in_ram: true          # expérience : false = poids lus en flash
   prediction:
     name: "Chiffre prédit"
   confidence:

@@ -4,6 +4,8 @@ Toutes les entités sont facultatives. test_vectors (vrai par défaut) embarque
 les images de test de test_vectors.h, nécessaires au bouton « image suivante »
 et à l'autotest. activity_output (facultatif) : une sortie, par exemple la LED
 de la carte, allumée pendant au moins activity_duration à chaque inférence.
+weights_in_ram (faux par défaut) : copie les poids de la flash vers la RAM au
+démarrage, pour mesurer l'effet du cache de la flash sur le temps d'inférence.
 """
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -18,6 +20,7 @@ NnMnist = nn_mnist_ns.class_("NnMnist", cg.Component)
 CONF_TEST_VECTORS = "test_vectors"
 CONF_ACTIVITY_OUTPUT = "activity_output"
 CONF_ACTIVITY_DURATION = "activity_duration"
+CONF_WEIGHTS_IN_RAM = "weights_in_ram"
 CAPTEURS = {
     # clé YAML : (unité, décimales, icône, catégorie)
     "prediction": (None, 0, "mdi:numeric", None),
@@ -53,6 +56,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_TEST_VECTORS, default=True): cv.boolean,
         cv.Optional(CONF_ACTIVITY_OUTPUT): cv.use_id(output.BinaryOutput),
         cv.Optional(CONF_ACTIVITY_DURATION, default="150ms"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_WEIGHTS_IN_RAM, default=False): cv.boolean,
         **{cv.Optional(cle): _capteur(*v) for cle, v in CAPTEURS.items()},
         **{cv.Optional(cle): _texte(*v) for cle, v in TEXTES.items()},
     }
@@ -64,6 +68,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     if config[CONF_TEST_VECTORS]:
         cg.add_define("USE_NN_MNIST_TEST_VECTORS")
+    cg.add(var.set_weights_in_ram(config[CONF_WEIGHTS_IN_RAM]))
     if CONF_ACTIVITY_OUTPUT in config:
         sortie = await cg.get_variable(config[CONF_ACTIVITY_OUTPUT])
         cg.add(var.set_activity_output(sortie))
