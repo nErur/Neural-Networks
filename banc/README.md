@@ -50,11 +50,19 @@ paramètres → préparation → essai interactif → analyses → comparaison �
 
 ## Pour SpectraSense
 
-- `taches.SpectraSense` est un gabarit : fenêtres de puissance (canaux, longueur), étiquette = phase,
-  **groupes = identifiant du cycle** et découpage par cycle (`decouper_par_groupe`).
+- Tâche `spectrasense` (`taches.SpectraSense`) : fenêtres de la ligne arrière-cuisine (ESP + PZEM),
+  forme (canaux, longueur), **12 classes** (repos, 8 phases de la machine à café, grille-pain,
+  bouilloire, consommateur inconnu ; une seule chose tourne à la fois), seulement les secondes
+  « porte ouverte ». Options : `longueur` (128), `canaux` ("log+lin"), `copies` (2), `synth` (0.10),
+  `equilibrage` ("racine").
+- Les fenêtres sont fabriquées côté SpectraSense (dépôt voisin, ou variable `SPECTRASENSE`) :
+  `python tools/dataset/fenetres.py --longueur 128 --canaux log,lin` ; le banc ne fait que les lire.
+- La précision par fenêtre sert au tri ; le vrai critère (latence, fausses alertes / semaine) :
+  `python tools/evaluation/evaluer.py --source reseau --modele <banc/resultats/modeles/ID.npz>`
+  (dans le dépôt spectrasense).
 - Les convolutions 1D existent dans le banc ; le moteur C++ de l'ESP ne les exécute pas encore
   (les essais conv1d sont marqués « pas encore déployable »).
-- Préférer **ReLU** dans les couches cachées : environ 4 cycles contre ~436 pour une sigmoïde sur l'ESP.
+- Préférer **ReLU** dans les couches cachées : environ 46 cycles contre ~436 pour une sigmoïde sur l'ESP.
 
 ## Limites connues
 

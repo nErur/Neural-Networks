@@ -35,7 +35,7 @@ DEFAUT = {
 OPTIONS_TACHES = {
     "mnist": {"facteur": 2},
     "signal": {"longueur": 128, "bruit": 0.15, "n_train": 8000},
-    "spectrasense": {},
+    "spectrasense": {"longueur": 128, "canaux": "log+lin", "copies": 2, "synth": 0.10, "equilibrage": "racine"},
 }
 TYPES = {"dense", "conv1d", "maxpool1d"}
 ACTIVATIONS = {"sigmoide", "relu", "tanh"}

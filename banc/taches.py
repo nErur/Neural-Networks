@@ -20,6 +20,8 @@ import sys
 import numpy as np
 
 RACINE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# dépôt SpectraSense (voisin de celui-ci par défaut ; sinon variable d'environnement SPECTRASENSE)
+DOSSIER_SPECTRASENSE = os.environ.get("SPECTRASENSE", os.path.join(os.path.dirname(RACINE), "spectrasense"))
 
 
 class Tache:
@@ -123,22 +125,71 @@ class Signal(Tache):
 # ---------------------------------------------------------------- SpectraSense (gabarit)
 
 class SpectraSense(Tache):
-    """Gabarit de la tâche SpectraSense : à compléter quand les données seront prêtes.
+    """Ligne arrière-cuisine (ESP + PZEM) : fenêtres de puissance -> état de la ligne.
 
-    À définir :
-      - source : cycles isolés (CSV de SpectraSense), puissance rééchantillonnée
-        à pas fixe (tenue d'ordre 0), canal « âge de la donnée » (lectures PZEM perdues) ;
-      - fenêtres glissantes : forme_entree = (canaux, longueur) ; étiquette = phase en cours ;
-      - groupes = identifiant du cycle : découpage train / validation / test PAR CYCLE
-        (fonction decouper_par_groupe) ;
-      - mesure propre : délai entre le début d'une phase et le moment où le réseau la
-        publie avec une confiance suffisante (critère principal du projet) ;
-      - plus tard : une tête de sortie par appareil.
+    Les fenêtres sont fabriquées côté SpectraSense (tools/dataset/fenetres.py), une seule fois
+    par jeu d'options ; le banc ne fait que les lire (numpy seulement, pas de pandas ici).
+    Un exemple = les `longueur` dernières secondes (canaux × longueur), étiquette = état de la
+    ligne à la dernière seconde, parmi 12 classes (une seule chose tourne à la fois).
+    Seules les secondes « porte ouverte » (P > 20 W récemment) sont des exemples : sur l'ESP,
+    les sorties du réseau sont ignorées porte fermée.
+
+    Options :
+      longueur     fenêtre en secondes (128)
+      canaux       "log+lin" : ln(1+P)/ln(3001) et P/3000 ; "valide" possible en plus
+      copies       passes augmentées de l'entraînement (pertes de lecture, amplitude) (2)
+      synth        part de grille-pains synthétiques dans l'entraînement (0.10)
+      equilibrage  "racine" (chaque classe pèse comme la racine de sa fréquence) ou "aucun"
+
+    Validation : réelle, sans augmentation, avec 2 grille-pains synthétiques par matin
+    (la validation n'en contient aucun de réel). Test : réel, tel quel.
+    groupes = ouverture de porte d'origine (les copies augmentées d'un même événement partagent
+    leur groupe).
+    Le vrai critère (latence, fausses alertes / semaine) se mesure côté SpectraSense :
+        python tools/evaluation/evaluer.py --source reseau --modele <banc/resultats/modeles/ID.npz>
     """
     nom = "spectrasense"
+    classes = ("repos", "allumage_chauffe", "allumage_regulation", "allumage_fin",
+               "cafe_broyage", "cafe_extraction", "cafe_fin", "pic_maintien", "extinction",
+               "grille_pain", "bouilloire", "consommateur_inconnu")
+
+    def __init__(self, longueur=128, canaux="log+lin", copies=2, synth=0.10, equilibrage="racine",
+                 **options):
+        super().__init__(longueur=longueur, canaux=canaux, copies=copies, synth=synth,
+                         equilibrage=equilibrage, **options)
+        self.canaux = tuple(canaux.split("+"))
+        self.forme_entree = (len(self.canaux), int(longueur))
+        self.dossier = os.path.join(
+            DOSSIER_SPECTRASENSE, "data", "fenetres",
+            "L%d_%s_c%d_s%d_%s" % (longueur, "+".join(self.canaux), copies, round(100 * synth), equilibrage))
 
     def _charger(self, partie):
-        raise NotImplementedError("tâche SpectraSense pas encore branchée sur les données")
+        chemin = os.path.join(self.dossier, partie + ".npz")
+        if not os.path.exists(chemin):
+            raise FileNotFoundError(
+                "fenêtres absentes : %s\nles fabriquer depuis le dépôt spectrasense :\n"
+                "    python tools/dataset/fenetres.py --longueur %d --canaux %s --copies %d --synth %g "
+                "--equilibrage %s" % (chemin, self.forme_entree[1], ",".join(self.canaux),
+                                      self.options["copies"], self.options["synth"],
+                                      self.options["equilibrage"]))
+        z = np.load(chemin)
+        return z["X"], z["y"], z["groupes"]
+
+    def cycles_pretraitement(self):
+        # par seconde : une moyenne de case, un logarithme, un décalage de la fenêtre circulaire
+        return 600.0 * len(self.canaux)
+
+    def pretraitement_esp(self):
+        return {"pas_s": 1, "longueur": self.forme_entree[1], "canaux": list(self.canaux),
+                "p_ref_w": 3000.0, "porte_w": 20.0, "porte_tenue_s": 5}
+
+    def afficher(self, ax, x, titre=""):
+        x = np.reshape(x, self.forme_entree)
+        for c, nom in enumerate(self.canaux):
+            ax.plot(x[c], lw=0.8, label=nom)
+        ax.axvline(x.shape[1] - 1, color="r", lw=0.5, ls=":")
+        ax.set_title(titre, fontsize=8)
+        ax.tick_params(labelsize=6)
 
 
 def decouper_par_groupe(groupes, fractions=(0.7, 0.15, 0.15), graine=0):
