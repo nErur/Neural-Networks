@@ -109,6 +109,9 @@ def main():
     ap.add_argument("id")
     ap.add_argument("--sortie", default=os.path.join(RACINE, "esp32", "tests", "spectrasense"))
     ap.add_argument("--par-classe", type=int, default=2)
+    ap.add_argument("--espace", default="nn_model", help="espace de noms C++ des headers")
+    ap.add_argument("--inclure-moteur", default="nn_engine.h",
+                    help="chemin d'inclusion du moteur (composant ESPHome : esphome/components/nn_mnist/nn_engine.h)")
     a = ap.parse_args()
 
     paquet, cfg, tache = charger_reseau(a.id)
@@ -157,7 +160,7 @@ def main():
     entete = ("// Généré par esp32/python/export_conv.py le %s à partir de banc/resultats/modeles/%s.npz.\n"
               "// NE PAS MODIFIER À LA MAIN : relancer export_conv.py.\n" % (date, a.id))
     tailles = [C * L] + [int(np.prod(c["sortie"])) for c in plan]
-    out = [entete, "#pragma once\n\n#include \"nn_engine.h\"\n\nnamespace nn_model {\n\n",
+    out = [entete, "#pragma once\n\n#include \"%s\"\n\nnamespace %s {\n\n" % (a.inclure_moteur, a.espace),
            "constexpr int kNumLayers = %d;\n" % len(plan),
            "constexpr int kInputSize = %d;   // %d canaux × %d s\n" % (C * L, C, L),
            "constexpr int kOutputSize = %d;\n" % tailles[-1],
@@ -185,12 +188,12 @@ def main():
     out.append("static const nn::Layer kLayers[kNumLayers] = {\n%s\n};\n\n" % "\n".join(lignes))
     out.append("static const nn::Model kModel = {\n    \"%s\",\n    kNumLayers, kLayers, 0, 1, 1, kInputSize};\n\n"
                % ident)
-    out.append("static const char *const kClasses[kOutputSize] = {%s};\n\n}  // namespace nn_model\n"
-               % ", ".join('"%s"' % c for c in tache.classes))
+    out.append("static const char *const kClasses[kOutputSize] = {%s};\n\n}  // namespace %s\n"
+               % (", ".join('"%s"' % c for c in tache.classes), a.espace))
     with open(os.path.join(a.sortie, "model_weights.h"), "w", encoding="utf-8") as f:
         f.write("".join(out))
 
-    tv = [entete, "#pragma once\n\n#include <cstdint>\n\n#include \"model_weights.h\"\n\nnamespace nn_model {\n\n",
+    tv = [entete, "#pragma once\n\n#include <cstdint>\n\n#include \"model_weights.h\"\n\nnamespace %s {\n\n" % a.espace,
           "// Pour chaque fenêtre de validation : entrée (canaux × secondes) et sortie de chaque couche,\n"
           "// calculées en numpy float32 (référence à retrouver par le moteur C++).\n"
           "struct TestVector {\n  uint8_t label;\n  uint8_t py_pred;\n  uint32_t index;\n"
@@ -206,7 +209,7 @@ def main():
     for t, i in enumerate(choix):
         tv.append("    {%d, %d, %d, kTv%dIn, {%s}},\n" % (y[i], pred[i], i, t,
                                                          ", ".join("kTv%dOut%d" % (t, l) for l in range(len(plan)))))
-    tv.append("};\n\n}  // namespace nn_model\n")
+    tv.append("};\n\n}  // namespace %s\n" % a.espace)
     with open(os.path.join(a.sortie, "test_vectors.h"), "w", encoding="utf-8") as f:
         f.write("".join(tv))
     print("Écrit : %s (%d couches, %d fenêtres de test) ; identifiant « %s »"

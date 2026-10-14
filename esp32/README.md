@@ -104,3 +104,8 @@ Le moteur (`esphome/components/nn_mnist/nn_engine.*`) exécute aussi `conv1d` et
 Réseau de référence : 162dcb9fbf (C8k3-P2-C16k5-P2-C16k5-P2-D24, 12 classes), test du 14/10/2026 :
 28/28 fenêtres conformes, écart relatif ≤ 4,4e-7 à chaque couche, 4 mutations détectées au bon étage.
 
+Sur la carte : composant `nn_spectrasense` (autotest des 16 fenêtres embarquées, profilage par couche),
+qui réutilise le moteur de `nn_mnist`. Headers :
+
+    python esp32\python\export_conv.py <id> --sortie esp32\esphome\components\nn_spectrasense --espace nn_ss --inclure-moteur esphome/components/nn_mnist/nn_engine.h --par-classe 1
+

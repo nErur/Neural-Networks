@@ -44,7 +44,7 @@ external_components:
       path: esp32/esphome/components
       username: !secret github_user
       password: !secret github_token
-    components: [nn_mnist]
+    components: [nn_mnist, nn_spectrasense]
     refresh: 0s                        # récupère le dernier commit à chaque compilation
 
 # LED bleue « D2 » de la carte (GPIO2, allumée à l'état haut) : témoin d'inférence.
@@ -78,6 +78,20 @@ nn_mnist:
   autotest:
     name: "Bilan autotest"
 
+# Réseau convolutif SpectraSense (12 classes) : autotest et profilage sur la carte.
+# Utilise le moteur de nn_mnist (une seule copie dans le firmware).
+nn_spectrasense:
+  id: spectra
+  weights_in_ram: true
+  model_id:
+    name: "SpectraSense modèle"
+  autotest:
+    name: "SpectraSense autotest"
+  inference_time:
+    name: "SpectraSense temps d'inférence"
+  max_error:
+    name: "SpectraSense écart max vs Python"
+
 # Entités de diagnostic de la carte.
 sensor:
   - platform: uptime
@@ -105,3 +119,11 @@ button:
     name: "Profilage"
     on_press:
       - lambda: id(mnist).run_profile();
+  - platform: template
+    name: "SpectraSense autotest"
+    on_press:
+      - lambda: id(spectra).run_autotest();
+  - platform: template
+    name: "SpectraSense profilage"
+    on_press:
+      - lambda: id(spectra).run_profile();
