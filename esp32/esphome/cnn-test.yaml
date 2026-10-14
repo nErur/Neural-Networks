@@ -78,11 +78,31 @@ nn_mnist:
   autotest:
     name: "Bilan autotest"
 
-# Réseau convolutif SpectraSense (12 classes) : autotest et profilage sur la carte.
+# Réseau convolutif SpectraSense (12 classes) : autotest, profilage, et chaîne complète en direct,
+# en parallèle de la carte PZEM : la puissance de la ligne arrive par Home Assistant.
 # Utilise le moteur de nn_mnist (une seule copie dans le firmware).
 nn_spectrasense:
   id: spectra
   weights_in_ram: true
+  power: puissance_ligne
+  clock_delay: 2s               # horloge en retard (rafales HA) ; 0s sur la carte PZEM
+  threshold: 0.95               # réglages de l'automate retenus sur la validation
+  hold: 1
+  peak_threshold: 0.5
+  machine:
+    name: "Machine à café"
+  toaster:
+    name: "Grille-pain"
+  kettle:
+    name: "Bouilloire"
+  unknown_load:
+    name: "Consommateur inconnu"
+  gate:
+    name: "SpectraSense porte"
+  network_class:
+    name: "SpectraSense classe du réseau"
+  invalid_seconds:
+    name: "SpectraSense secondes invalides"
   model_id:
     name: "SpectraSense modèle"
   autotest:
@@ -92,8 +112,13 @@ nn_spectrasense:
   max_error:
     name: "SpectraSense écart max vs Python"
 
-# Entités de diagnostic de la carte.
 sensor:
+  # Puissance de la ligne arrière-cuisine, lue dans HA (carte PZEM) : entrée de la chaîne.
+  - platform: homeassistant
+    id: puissance_ligne
+    entity_id: sensor.esphome_web_9f0748_power
+    internal: true
+  # Entités de diagnostic de la carte.
   - platform: uptime
     name: "Uptime"
   - platform: wifi_signal

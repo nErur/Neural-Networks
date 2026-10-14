@@ -54,6 +54,40 @@ int Adaptateur::avancer_horloge(double t, Recepteur &r) {
   return demarre_ ? fermer_jusqua_(t, r) : 0;
 }
 
+// ------------------------------------------------------------------ entrée HA (debrouiller_rafales)
+static const double kRafale = 0.3, kPeriodePzem = 1.0;
+
+void EntreeHa::vider(Recepteur &r) {
+  const int n = n_;
+  if (n == 0) return;
+  const double dernier = t_[n - 1];
+  double pas = kPeriodePzem;
+  if (a_prec_ && dernier - (n - 1) * kPeriodePzem <= prec_ + 0.05) pas = (dernier - prec_) / n;
+  for (int i = 0; i < n; i++) {
+    double t = n > 1 ? dernier - (n - 1 - i) * pas : t_[i];
+    if (a_.demarre() && t < a_.curseur()) {          // sa case est déjà fermée par l'horloge
+      t = a_.curseur();
+      recalees_++;
+    }
+    a_.pousser(t, p_[i], r);
+  }
+  prec_ = dernier;
+  a_prec_ = true;
+  n_ = 0;
+}
+
+void EntreeHa::mesure(double t, double p, Recepteur &r) {
+  if (n_ > 0 && (t - t_[n_ - 1] >= kRafale || n_ == kMax)) vider(r);
+  t_[n_] = t;
+  p_[n_] = p;
+  n_++;
+}
+
+void EntreeHa::horloge(double t, Recepteur &r) {
+  if (n_ > 0 && t - t_[n_ - 1] >= kRafale) vider(r);
+  a_.avancer_horloge(t - retard_, r);
+}
+
 // ------------------------------------------------------------------ automate (automate.py)
 enum : int { kRepos = 0, kChauffeA, kRegulationA, kFinAllumage, kBroyageA, kExtractionA, kFinCafe, kPicA, kExtinctionA };
 static const double kFinMaintien = 2.5 * 222, kExtinctionSansPic = 140 * 60;

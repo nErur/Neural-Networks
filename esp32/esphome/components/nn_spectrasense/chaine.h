@@ -35,11 +35,42 @@ class Adaptateur {
   int pousser(double t, double p, Recepteur &r);
   // Ferme les cases jusqu'à t même sans mesure (lecture PZEM ratée).
   int avancer_horloge(double t, Recepteur &r);
+  double curseur() const { return t_curseur_; }
+  bool demarre() const { return demarre_; }
 
  private:
   int fermer_jusqua_(double t, Recepteur &r);
   bool demarre_{false};
   double t_mesure_{0}, p_{0}, t_case_{0}, t_curseur_{0}, acc_{0};
+};
+
+// ------------------------------------------------------------------ entrée depuis Home Assistant
+// Les lectures relayées par HA sont datées à leur RÉCEPTION ; ~2 % arrivent en rafale (quelques ms
+// d'écart) alors qu'elles ont été mesurées ~1 s l'une après l'autre. Même règle que
+// adaptateur.py : debrouiller_rafales, appliquée en flux : une rafale est close quand 0,3 s passe
+// sans nouvelle lecture, puis re-datée à rebours (1 s par lecture, sans repasser avant la lecture
+// précédente) et remise à l'adaptateur.
+// L'horloge (cases fermées sans nouvelle lecture) avance avec `retard` secondes de retard, pour
+// qu'une rafale tardive retrouve sa place dans la grille. Pendant l'activité, ce sont les lectures
+// qui ferment les cases : le retard ne joue que dans les silences (HA ne republie pas une valeur
+// identique). Sur la carte PZEM (lectures datées sur place), retard = 0 et pas de rafale.
+class EntreeHa {
+ public:
+  explicit EntreeHa(double retard) : retard_(retard) {}
+  void mesure(double t, double p, Recepteur &r);   // lecture reçue à t (s)
+  void horloge(double t, Recepteur &r);            // à appeler souvent (loop)
+  void vider(Recepteur &r);                        // remet la rafale en attente (fin de fichier)
+  int recalees() const { return recalees_; }       // lectures arrivées après fermeture de leur case
+
+ private:
+  static constexpr int kMax = 16;
+  double retard_;
+  Adaptateur a_;
+  double t_[kMax]{}, p_[kMax]{};
+  int n_{0};
+  double prec_{0};
+  bool a_prec_{false};
+  int recalees_{0};
 };
 
 // ------------------------------------------------------------------ automate

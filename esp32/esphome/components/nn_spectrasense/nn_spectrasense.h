@@ -1,16 +1,20 @@
 #pragma once
-// Liaison ESPHome du réseau convolutif SpectraSense (étape 1 : autotest et profilage sur la carte).
+// Liaison ESPHome du réseau convolutif SpectraSense : autotest, profilage, et chaîne complète
+// (ss::EntreeHa -> ss::Chaine) alimentée par un capteur de puissance, avec publication des états.
 
 #include <cstdint>
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
+
+#include "chaine.h"
 
 namespace esphome {
 namespace nn_spectrasense {
 
-class NnSpectrasense : public Component {
+class NnSpectrasense : public Component, public ss::Recepteur {
  public:
   void setup() override;
   void loop() override;
@@ -23,6 +27,24 @@ class NnSpectrasense : public Component {
   void set_autotest_text_sensor(text_sensor::TextSensor *s) { autotest_ = s; }
   void set_weights_in_ram(bool v) { weights_in_ram_ = v; }
 
+  // chaîne en direct
+  void set_power_sensor(sensor::Sensor *s) { power_ = s; }
+  void set_clock_delay(float s) { clock_delay_ = s; }
+  void set_reglages(float seuil, float seuil_pic, int tenue) {
+    reglages_.seuil = seuil;
+    reglages_.seuil_pic = seuil_pic;
+    reglages_.tenue = tenue;
+  }
+  void set_machine_text_sensor(text_sensor::TextSensor *s) { machine_ = s; }
+  void set_network_class_text_sensor(text_sensor::TextSensor *s) { classe_ = s; }
+  void set_toaster_binary_sensor(binary_sensor::BinarySensor *s) { grille_pain_ = s; }
+  void set_kettle_binary_sensor(binary_sensor::BinarySensor *s) { bouilloire_ = s; }
+  void set_unknown_load_binary_sensor(binary_sensor::BinarySensor *s) { inconnu_ = s; }
+  void set_gate_binary_sensor(binary_sensor::BinarySensor *s) { porte_ = s; }
+  void set_invalid_seconds_sensor(sensor::Sensor *s) { invalides_ = s; }
+
+  void recevoir(const ss::Case &c) override;   // une case de la grille (une par seconde)
+
   void run_autotest();     // les fenêtres embarquées, une par passage dans loop()
   void run_profile();      // cycles par couche, moyenne sur les fenêtres embarquées
 
@@ -31,6 +53,9 @@ class NnSpectrasense : public Component {
   void profile_step_();
   void profile_report_();
   bool copy_weights_to_ram_();
+  void mesure_(float p);
+  void bilan_minute_();
+  static double maintenant_();
 
   bool weights_in_ram_{true};
   int autotest_index_{-1};
@@ -42,6 +67,23 @@ class NnSpectrasense : public Component {
   uint32_t prof_calc_[8]{}, prof_act_[8]{};
   uint32_t prof_c0_{0}, prof_u0_{0};
 
+  sensor::Sensor *power_{nullptr};
+  float clock_delay_{2.0f};
+  ss::Reglages reglages_;
+  ss::EntreeHa *entree_{nullptr};
+  ss::Chaine *chaine_{nullptr};
+  int pub_machine_{-1}, pub_classe_{-1}, pub_gp_{-1}, pub_bouilloire_{-1}, pub_inconnu_{-1}, pub_porte_{-1};
+  uint32_t n_cases_{0}, n_invalides_{0}, n_lectures_{0};
+  int64_t pub_invalides_{-1};
+  uint32_t inf_us_{0}, inf_n_{0}, t_bilan_{0};
+
+  text_sensor::TextSensor *machine_{nullptr};
+  text_sensor::TextSensor *classe_{nullptr};
+  binary_sensor::BinarySensor *grille_pain_{nullptr};
+  binary_sensor::BinarySensor *bouilloire_{nullptr};
+  binary_sensor::BinarySensor *inconnu_{nullptr};
+  binary_sensor::BinarySensor *porte_{nullptr};
+  sensor::Sensor *invalides_{nullptr};
   sensor::Sensor *inference_time_{nullptr};
   sensor::Sensor *max_error_{nullptr};
   text_sensor::TextSensor *model_id_{nullptr};

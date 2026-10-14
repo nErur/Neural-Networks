@@ -10,6 +10,7 @@
 
 #ifdef USE_ESP32
 #include "esp_cpu.h"
+#include "esp_timer.h"
 #endif
 
 #include "esphome/components/nn_mnist/nn_engine.h"   // moteur commun (compilé une fois, par nn_mnist)
@@ -61,9 +62,86 @@ static uint32_t operations(const nn::Layer &L) {
   return (uint32_t) L.n_in * L.n_out;
 }
 
+static const char *const kEtatsMachine[] = {"arrêt", "veille", "maintien", "chauffe",
+                                            "régulation", "broyage", "extraction", "fin"};
+
 void NnSpectrasense::setup() {
   if (weights_in_ram_ && !copy_weights_to_ram_()) ESP_LOGE(TAG, "RAM insuffisante : poids laissés en flash");
   if (model_id_ != nullptr) model_id_->publish_state(model().id);
+  if (power_ != nullptr) {
+    // une seule allocation, au démarrage ; la chaîne utilise le modèle définitif (RAM ou flash)
+    entree_ = new ss::EntreeHa(clock_delay_);
+    chaine_ = new ss::Chaine(model(), buf_a_, buf_b_, reglages_);
+    power_->add_on_state_callback([this](float p) { this->mesure_(p); });
+  }
+}
+
+// Horloge monotone en secondes depuis le démarrage (64 bits : pas de retour à zéro).
+double NnSpectrasense::maintenant_() {
+#ifdef USE_ESP32
+  return (double) esp_timer_get_time() * 1e-6;
+#else
+  return millis() * 1e-3;
+#endif
+}
+
+void NnSpectrasense::mesure_(float p) {
+  if (std::isnan(p)) return;                        // capteur indisponible : l'horloge invalidera les cases
+  n_lectures_++;
+  entree_->mesure(maintenant_(), p, *this);
+}
+
+void NnSpectrasense::recevoir(const ss::Case &c) {
+  const uint32_t t0 = micros();
+  const ss::Sortie s = chaine_->traiter(c);
+  if (s.reseau) {
+    inf_us_ += micros() - t0;
+    inf_n_++;
+  }
+  n_cases_++;
+  if (!c.valide) n_invalides_++;
+  int k = 0;                                         // classe dominante du réseau (repos si porte fermée)
+  for (int i = 1; i < ss::kClasses; i++)
+    if (s.q[i] > s.q[k]) k = i;
+  if (s.reseau)
+    ESP_LOGD(TAG, "%6.0f W  %-20s %5.1f %%  machine %-10s%s%s%s", s.p_moy, M::kClasses[k], 100.0f * s.q[k],
+             kEtatsMachine[s.machine], s.grille_pain ? "  grille-pain" : "", s.bouilloire ? "  bouilloire" : "",
+             s.inconnu ? "  inconnu" : "");
+  if (s.machine != pub_machine_) {
+    if (pub_machine_ >= 0) ESP_LOGI(TAG, "machine : %s -> %s", kEtatsMachine[pub_machine_], kEtatsMachine[s.machine]);
+    pub_machine_ = s.machine;
+    if (machine_ != nullptr) machine_->publish_state(kEtatsMachine[s.machine]);
+  }
+  if (k != pub_classe_) {
+    pub_classe_ = k;
+    if (classe_ != nullptr) classe_->publish_state(M::kClasses[k]);
+  }
+  struct { binary_sensor::BinarySensor *e; int *pub; int v; const char *nom; } simples[] = {
+      {grille_pain_, &pub_gp_, s.grille_pain, "grille-pain"},
+      {bouilloire_, &pub_bouilloire_, s.bouilloire, "bouilloire"},
+      {inconnu_, &pub_inconnu_, s.inconnu, "consommateur inconnu"},
+      {porte_, &pub_porte_, s.porte, nullptr},
+  };
+  for (auto &x : simples) {
+    if (x.v == *x.pub) continue;
+    if (*x.pub >= 0 && x.nom != nullptr) ESP_LOGI(TAG, "%s : %s", x.nom, x.v ? "marche" : "arrêt");
+    *x.pub = x.v;
+    if (x.e != nullptr) x.e->publish_state(x.v);
+  }
+}
+
+// Toutes les minutes : secondes invalides (si elles ont changé) et temps d'inférence moyen.
+void NnSpectrasense::bilan_minute_() {
+  ESP_LOGD(TAG, "depuis le démarrage : %u lectures, %u cases dont %u invalides", (unsigned) n_lectures_,
+           (unsigned) n_cases_, (unsigned) n_invalides_);
+  if (invalides_ != nullptr && (int64_t) n_invalides_ != pub_invalides_) {
+    pub_invalides_ = n_invalides_;
+    invalides_->publish_state(n_invalides_);
+  }
+  if (inf_n_ > 0) {
+    if (inference_time_ != nullptr) inference_time_->publish_state((float) inf_us_ / inf_n_);
+    inf_us_ = inf_n_ = 0;
+  }
 }
 
 bool NnSpectrasense::copy_weights_to_ram_() {
@@ -94,6 +172,11 @@ bool NnSpectrasense::copy_weights_to_ram_() {
 
 void NnSpectrasense::dump_config() {
   ESP_LOGCONFIG(TAG, "nn_spectrasense :");
+  if (power_ != nullptr)
+    ESP_LOGCONFIG(TAG, "  Chaîne en direct : seuil %.2f, tenue %d, seuil pic %.2f, horloge en retard de %.1f s",
+                  reglages_.seuil, reglages_.tenue, reglages_.seuil_pic, clock_delay_);
+  else
+    ESP_LOGCONFIG(TAG, "  Pas de capteur de puissance : autotest et profilage seulement");
   ESP_LOGCONFIG(TAG, "  Modèle : %s", model().id);
   ESP_LOGCONFIG(TAG, "  Couches : %d, entrée %d, sortie %d, tampons %d floats", model().n_layers, M::kInputSize,
                 M::kOutputSize, M::kMaxWidth);
@@ -119,6 +202,14 @@ void NnSpectrasense::run_profile() {
 }
 
 void NnSpectrasense::loop() {
+  if (entree_ != nullptr) {
+    entree_->horloge(maintenant_(), *this);         // ferme les cases (rafale close, silences)
+    const uint32_t ms = millis();
+    if (ms - t_bilan_ >= 60000) {
+      t_bilan_ = ms;
+      bilan_minute_();
+    }
+  }
   if (profile_index_ >= 0) {
     profile_step_();
     return;
