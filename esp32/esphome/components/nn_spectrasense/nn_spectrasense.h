@@ -9,6 +9,11 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
+#include "esphome/core/preferences.h"
+#ifdef USE_TIME
+#include "esphome/components/time/real_time_clock.h"
+#endif
+
 #include "chaine.h"
 
 namespace esphome {
@@ -42,6 +47,10 @@ class NnSpectrasense : public Component, public ss::Recepteur {
   void set_unknown_load_binary_sensor(binary_sensor::BinarySensor *s) { inconnu_ = s; }
   void set_gate_binary_sensor(binary_sensor::BinarySensor *s) { porte_ = s; }
   void set_invalid_seconds_sensor(sensor::Sensor *s) { invalides_ = s; }
+#ifdef USE_TIME
+  // horloge réelle : l'état long de la machine survit aux redémarrages (mémoire en flash)
+  void set_time(time::RealTimeClock *t) { time_ = t; }
+#endif
 
   void recevoir(const ss::Case &c) override;   // une case de la grille (une par seconde)
 
@@ -55,6 +64,9 @@ class NnSpectrasense : public Component, public ss::Recepteur {
   bool copy_weights_to_ram_();
   void mesure_(float p);
   void bilan_minute_();
+  bool epoch_(int64_t &e) const;   // heure réelle (s), si connue
+  void restaurer_();
+  void memoriser_();
   static double maintenant_();
 
   bool weights_in_ram_{true};
@@ -67,6 +79,18 @@ class NnSpectrasense : public Component, public ss::Recepteur {
   uint32_t prof_calc_[8]{}, prof_act_[8]{};
   uint32_t prof_c0_{0}, prof_u0_{0};
 
+  // état long gardé en flash : {état, heure réelle de la dernière activité / du dernier pic}
+  struct Memoire {
+    uint8_t etat;
+    int64_t epoch_ref;
+  };
+  ESPPreferenceObject pref_;
+  bool restaure_{false};
+  int mem_etat_{-1};
+  int64_t mem_ref_{0};
+#ifdef USE_TIME
+  time::RealTimeClock *time_{nullptr};
+#endif
   sensor::Sensor *power_{nullptr};
   float clock_delay_{2.0f};
   ss::Reglages reglages_;

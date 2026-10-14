@@ -106,6 +106,9 @@ static uint8_t ha_de_long(Long l) {
 }
 
 int AutomateMachine::cible_(int i) const {
+  // cycle commencé dans l'état inconnu : les deux familles restent possibles
+  if ((cycle_ == Cycle::kAllumage || cycle_ == Cycle::kCafe) && a_debut_ && debut_long_ == Long::kInconnu)
+    return (i == kPicA || i == kExtinctionA) ? -1 : i;
   switch (cycle_) {
     case Cycle::kAllumage:
       if (i == kBroyageA) return kRegulationA;
@@ -153,6 +156,17 @@ void AutomateMachine::annuler_cycle(double t) {
   }
 }
 
+void AutomateMachine::forcer_long(Long l, double t) {
+  long_ = l;
+  if (l == Long::kVeille) {
+    t_activite_ = t;
+    a_activite_ = true;
+  } else if (l == Long::kMaintien) {
+    t_pic_ = t;
+    a_pic_ = true;
+  }
+}
+
 void AutomateMachine::publier_(double t, int nouv) {
   const int anc = act_;
   act_ = nouv;
@@ -183,6 +197,9 @@ void AutomateMachine::publier_(double t, int nouv) {
       a_pic_ = true;
     }
     if (cycle_ == Cycle::kExtinction) long_ = Long::kArret;
+  } else if (cycle_ == Cycle::kAllumage || cycle_ == Cycle::kCafe) {   // changement de famille (inconnu)
+    if (est_allumage(nouv)) cycle_ = Cycle::kAllumage;
+    else if (est_cafe(nouv)) cycle_ = Cycle::kCafe;
   }
 }
 

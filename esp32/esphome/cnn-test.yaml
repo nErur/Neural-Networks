@@ -85,6 +85,7 @@ nn_spectrasense:
   id: spectra
   weights_in_ram: true
   power: puissance_ligne
+  time_id: heure_ha             # état long (arrêt / veille / maintien) gardé d'un redémarrage à l'autre
   clock_delay: 2s               # horloge en retard (rafales HA) ; 0s sur la carte PZEM
   threshold: 0.95               # réglages de l'automate retenus sur la validation
   hold: 1
@@ -111,6 +112,10 @@ nn_spectrasense:
     name: "SpectraSense temps d'inférence"
   max_error:
     name: "SpectraSense écart max vs Python"
+
+time:
+  - platform: homeassistant
+    id: heure_ha
 
 sensor:
   # Puissance de la ligne arrière-cuisine, lue dans HA (carte PZEM) : entrée de la chaîne.

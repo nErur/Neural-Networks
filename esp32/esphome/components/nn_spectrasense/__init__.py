@@ -12,7 +12,7 @@ Headers : esp32/python/export_conv.py <id> --sortie <ce dossier> --espace nn_ss
 """
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import binary_sensor, sensor, text_sensor
+from esphome.components import binary_sensor, sensor, text_sensor, time
 from esphome.const import CONF_ID, ENTITY_CATEGORY_DIAGNOSTIC, STATE_CLASS_MEASUREMENT, STATE_CLASS_TOTAL_INCREASING
 
 DEPENDENCIES = ["nn_mnist"]
@@ -26,6 +26,7 @@ CONF_POWER = "power"                  # capteur de puissance de la ligne (W)
 CONF_CLOCK_DELAY = "clock_delay"      # retard de l'horloge qui ferme les cases dans les silences
 CONF_THRESHOLD = "threshold"          # seuil de confiance pour publier (automate : seuil)
 CONF_PEAK_THRESHOLD = "peak_threshold"
+CONF_TIME_ID = "time_id"              # horloge réelle : état long de la machine gardé en flash
 CONF_HOLD = "hold"                    # secondes consécutives au-dessus du seuil (automate : tenue)
 CAPTEURS = {
     "inference_time": ("µs", 0, "mdi:timer-outline"),
@@ -48,6 +49,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(NnSpectrasense),
         cv.Optional(CONF_WEIGHTS_IN_RAM, default=True): cv.boolean,
         cv.Optional(CONF_POWER): cv.use_id(sensor.Sensor),
+        cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
         cv.Optional(CONF_CLOCK_DELAY, default="2s"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_THRESHOLD, default=0.95): cv.float_range(min=0.5, max=1.0),
         cv.Optional(CONF_PEAK_THRESHOLD, default=0.5): cv.float_range(min=0.0, max=1.0),
@@ -78,6 +80,8 @@ async def to_code(config):
     cg.add(var.set_weights_in_ram(config[CONF_WEIGHTS_IN_RAM]))
     if CONF_POWER in config:
         cg.add(var.set_power_sensor(await cg.get_variable(config[CONF_POWER])))
+    if CONF_TIME_ID in config:
+        cg.add(var.set_time(await cg.get_variable(config[CONF_TIME_ID])))
     cg.add(var.set_clock_delay(config[CONF_CLOCK_DELAY].total_milliseconds / 1000.0))
     cg.add(var.set_reglages(config[CONF_THRESHOLD], config[CONF_PEAK_THRESHOLD], config[CONF_HOLD]))
     if "machine" in config:

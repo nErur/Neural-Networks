@@ -1,6 +1,7 @@
 // Rejoue une suite de mesures (t, P) dans la chaîne C++ de l'ESP et écrit, pour chaque seconde,
 // la grille, la porte, les probabilités du réseau et les états publiés.
-//   rejouer mesures.csv sortie.csv [seuil tenue seuil_pic [retard]]
+//   rejouer mesures.csv sortie.csv [seuil tenue seuil_pic [retard [etat_initial]]]
+//     etat_initial : inconnu (défaut), arret, veille, maintien (état long de la machine au départ).
 //     mesures : « t,p » par ligne, t en secondes.
 //     sans retard : t déjà re-datés (debrouiller_rafales), remis directement à l'adaptateur ;
 //     avec retard : t = heures d'ARRIVÉE brutes de HA, traitées comme sur la carte (ss::EntreeHa :
@@ -8,6 +9,7 @@
 // Comparé à la chaîne Python par spectrasense/tools/evaluation/parite_cpp.py.
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 
 #include "esphome/components/nn_spectrasense/chaine.h"
 #include "esphome/components/nn_spectrasense/model_weights.h"   // réseau embarqué (espace nn_ss)
@@ -49,6 +51,14 @@ int main(int argc, char **argv) {
   fprintf(out, "t,p_moy,valide,porte,reseau");
   for (int k = 0; k < ss::kClasses; k++) fprintf(out, ",q%d", k);
   fprintf(out, ",machine,activite,grille_pain,bouilloire,inconnu,emis\n");
+  if (argc >= 8) {
+    const std::string e = argv[7];
+    const ss::Long l = e == "arret" ? ss::Long::kArret : e == "veille" ? ss::Long::kVeille
+                       : e == "maintien" ? ss::Long::kMaintien : ss::Long::kInconnu;
+    long pos = ftell(in);
+    if (fscanf(in, "%lf,%lf", &t, &p) == 2) chaine.machine().forcer_long(l, t);
+    fseek(in, pos, SEEK_SET);
+  }
   if (argc >= 7) {                                     // comme sur la carte
     ss::EntreeHa entree(atof(argv[6]));
     double tick = 0;

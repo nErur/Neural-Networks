@@ -90,6 +90,11 @@ class AutomateMachine {
   explicit AutomateMachine(const Reglages &r) : r_(r) {}
   uint8_t pas(double t, const double q[kAct], bool porte);   // renvoie l'état HA
   void annuler_cycle(double t);
+  // impose l'état long (reprise après redémarrage, essais) ; t : dernière activité ou dernier pic
+  void forcer_long(Long l, double t);
+  Long etat_long() const { return long_; }
+  // instant qui fait vivre l'état long : dernière activité (veille), dernier pic (maintien)
+  double t_reference() const { return long_ == Long::kVeille ? t_activite_ : long_ == Long::kMaintien ? t_pic_ : 0.0; }
   uint8_t ha() const;
   uint8_t activite() const { return act_; }
 
@@ -140,6 +145,7 @@ class Chaine {
       : m_(m), buf_a_(buf_a), buf_b_(buf_b), machine_(r), gp_(r), bouilloire_(r), inconnu_(r) {}
   // Traite une case de la grille (une par seconde).
   Sortie traiter(const Case &c);
+  AutomateMachine &machine() { return machine_; }
 
  private:
   const nn::Model &m_;

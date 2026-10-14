@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <new>
 
@@ -73,6 +74,61 @@ void NnSpectrasense::setup() {
     entree_ = new ss::EntreeHa(clock_delay_);
     chaine_ = new ss::Chaine(model(), buf_a_, buf_b_, reglages_);
     power_->add_on_state_callback([this](float p) { this->mesure_(p); });
+    pref_ = global_preferences->make_preference<Memoire>(0x53534D31UL /* "SSM1" */, true);
+  }
+}
+
+bool NnSpectrasense::epoch_(int64_t &e) const {
+#ifdef USE_TIME
+  if (time_ == nullptr) return false;
+  const auto n = time_->now();
+  if (!n.is_valid()) return false;
+  e = (int64_t) n.timestamp;
+  return true;
+#else
+  return false;
+#endif
+}
+
+static const char *nom_long(ss::Long l) {
+  return l == ss::Long::kArret ? "arrêt" : l == ss::Long::kVeille ? "veille" : l == ss::Long::kMaintien ? "maintien"
+                                                                                                         : "inconnu";
+}
+
+// Au démarrage, dès que l'heure réelle est connue : reprend l'état long mémorisé, vieilli du temps
+// écoulé (les minuteries de l'automate font le reste : veille -> arrêt après 140 min, etc.).
+void NnSpectrasense::restaurer_() {
+  int64_t e;
+  if (!epoch_(e)) return;
+  restaure_ = true;
+  Memoire m{};
+  if (!pref_.load(&m) || m.etat > (uint8_t) ss::Long::kMaintien) {
+    ESP_LOGI(TAG, "pas d'état mémorisé : machine en état inconnu jusqu'au prochain cycle");
+    return;
+  }
+  ss::AutomateMachine &a = chaine_->machine();
+  mem_etat_ = m.etat;
+  mem_ref_ = m.epoch_ref;
+  if (a.etat_long() != ss::Long::kInconnu || a.activite() != 0) return;   // un cycle a déjà tranché
+  const ss::Long l = (ss::Long) m.etat;
+  const double t_ref = maintenant_() - (double) (e - m.epoch_ref);
+  a.forcer_long(l, t_ref);
+  ESP_LOGI(TAG, "état mémorisé repris : %s (référence il y a %.0f min)", nom_long(l), (e - m.epoch_ref) / 60.0);
+}
+
+// Après chaque case : mémorise l'état long s'il a changé (quelques écritures par jour).
+void NnSpectrasense::memoriser_() {
+  const ss::AutomateMachine &a = chaine_->machine();
+  const ss::Long l = a.etat_long();
+  int64_t e;
+  if (!restaure_ || l == ss::Long::kInconnu || !epoch_(e)) return;
+  const int64_t ref = l == ss::Long::kArret ? 0 : e - (int64_t) llround(maintenant_() - a.t_reference());
+  if ((int) l == mem_etat_ && llabs(ref - mem_ref_) <= 2) return;
+  Memoire m{(uint8_t) l, ref};
+  if (pref_.save(&m)) {
+    mem_etat_ = (int) l;
+    mem_ref_ = ref;
+    ESP_LOGD(TAG, "état long mémorisé : %s", nom_long(l));
   }
 }
 
@@ -100,6 +156,7 @@ void NnSpectrasense::recevoir(const ss::Case &c) {
   }
   n_cases_++;
   if (!c.valide) n_invalides_++;
+  memoriser_();
   int k = 0;                                         // classe dominante du réseau (repos si porte fermée)
   for (int i = 1; i < ss::kClasses; i++)
     if (s.q[i] > s.q[k]) k = i;
@@ -172,9 +229,13 @@ bool NnSpectrasense::copy_weights_to_ram_() {
 
 void NnSpectrasense::dump_config() {
   ESP_LOGCONFIG(TAG, "nn_spectrasense :");
-  if (power_ != nullptr)
+  if (power_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Chaîne en direct : seuil %.2f, tenue %d, seuil pic %.2f, horloge en retard de %.1f s",
                   reglages_.seuil, reglages_.tenue, reglages_.seuil_pic, clock_delay_);
+#ifdef USE_TIME
+    ESP_LOGCONFIG(TAG, "  État long gardé en flash : %s", time_ != nullptr ? "oui (heure de HA)" : "non (pas de time_id)");
+#endif
+  }
   else
     ESP_LOGCONFIG(TAG, "  Pas de capteur de puissance : autotest et profilage seulement");
   ESP_LOGCONFIG(TAG, "  Modèle : %s", model().id);
@@ -203,6 +264,7 @@ void NnSpectrasense::run_profile() {
 
 void NnSpectrasense::loop() {
   if (entree_ != nullptr) {
+    if (!restaure_) restaurer_();
     entree_->horloge(maintenant_(), *this);         // ferme les cases (rafale close, silences)
     const uint32_t ms = millis();
     if (ms - t_bilan_ >= 60000) {
