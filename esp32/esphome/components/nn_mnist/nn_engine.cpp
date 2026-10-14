@@ -13,8 +13,20 @@
 namespace nn {
 
 size_t input_size(const Model &m) {
+  if (m.n_input != 0) return m.n_input;
   const size_t side = m.raw_side / m.factor;
   return side * side;
+}
+
+size_t weight_count(const Layer &layer) {
+  switch (layer.type) {
+    case LayerType::kConv1d:
+      return (size_t) layer.c_out * layer.c_in * layer.kernel;
+    case LayerType::kMaxPool1d:
+      return 0;
+    default:
+      return (size_t) layer.n_in * layer.n_out;
+  }
 }
 
 void preprocess(const Model &m, const uint8_t *image, float *out) {
@@ -49,7 +61,46 @@ static void softmax(float *v, int n) {
   for (int j = 0; j < n; j++) v[j] /= sum;
 }
 
+// Convolution 1D « valide » : pour chaque filtre f et chaque position o, le même petit
+// produit scalaire (c_in × kernel poids) glisse le long du signal.
+static void conv1d(const Layer &L, const float *in, float *out) {
+  const int C = L.c_in, Lin = L.l_in, F = L.c_out, Lo = L.l_out, k = L.kernel, s = L.stride;
+  for (int f = 0; f < F; f++) {
+    const float *wf = L.W + f * C * k;                       // les C × k poids du filtre f
+    for (int o = 0; o < Lo; o++) {
+      float z = L.b[f];
+      for (int c = 0; c < C; c++) {
+        const float *wc = wf + c * k;
+        const float *xc = in + c * Lin + o * s;              // fenêtre du canal c qui commence en o·s
+        for (int j = 0; j < k; j++) z += wc[j] * xc[j];
+      }
+      out[f * Lo + o] = z;
+    }
+  }
+}
+
+// Max-pooling 1D : le plus grand de chaque groupe de `kernel` secondes, canal par canal.
+static void maxpool1d(const Layer &L, const float *in, float *out) {
+  const int C = L.c_in, Lin = L.l_in, Lo = L.l_out, t = L.kernel;
+  for (int c = 0; c < C; c++) {
+    for (int o = 0; o < Lo; o++) {
+      const float *x = in + c * Lin + o * t;
+      float m = x[0];
+      for (int i = 1; i < t; i++) m = x[i] > m ? x[i] : m;
+      out[c * Lo + o] = m;
+    }
+  }
+}
+
 void matvec(const Layer &layer, const float *in, float *out) {
+  if (layer.type == LayerType::kConv1d) {
+    conv1d(layer, in, out);
+    return;
+  }
+  if (layer.type == LayerType::kMaxPool1d) {
+    maxpool1d(layer, in, out);
+    return;
+  }
   const float *w = layer.W;
   for (int j = 0; j < layer.n_out; j++) {
     float z = layer.b[j];
@@ -60,6 +111,7 @@ void matvec(const Layer &layer, const float *in, float *out) {
 }
 
 void activate(const Layer &layer, float *v) {
+  if (layer.type == LayerType::kMaxPool1d) return;          // pas d'activation après un pooling
   switch (layer.activation) {
     case Activation::kSigmoid:
       sigmoid(v, layer.n_out);

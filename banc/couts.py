@@ -18,7 +18,8 @@ CYCLES = {
     "fixe": 8000,        # mesuré : appel, recherche du maximum, chronométrage (7 150 à 9 000, ~33 µs)
 }
 # ce que le moteur C++ de l'ESP sait exécuter aujourd'hui
-DEPLOYABLE = {"types": {"dense"}, "activations": {"sigmoide", "relu", "tanh", "softmax"}}
+# (conv1d et maxpool1d : moteur testé sur PC le 14/10/2026 ; coût sur la carte encore estimé, à profiler)
+DEPLOYABLE = {"types": {"dense", "conv1d", "maxpool1d"}, "activations": {"sigmoide", "relu", "tanh", "softmax"}}
 
 
 def couts(cfg, n_classes=None):

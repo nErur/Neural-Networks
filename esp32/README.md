@@ -92,3 +92,15 @@ Le script compare la prédiction de l'ESP à celle de Python (float32, même mod
     esphome run cnn-test-local.yaml
 
 Secrets dans `esphome\secrets.yaml` (ignoré par git).
+
+## Convolution 1D (SpectraSense)
+
+Le moteur (`esphome/components/nn_mnist/nn_engine.*`) exécute aussi `conv1d` et `maxpool1d`
+(signaux rangés canal par canal, comme le banc). Les couches denses de MNIST sont inchangées.
+
+    python esp32\python\export_conv.py <id du journal du banc>   (headers + 28 fenêtres de test)
+    python esp32\tests\lancer_tests_conv.py                      (test couche par couche + mutations)
+
+Réseau de référence : 162dcb9fbf (C8k3-P2-C16k5-P2-C16k5-P2-D24, 12 classes), test du 14/10/2026 :
+28/28 fenêtres conformes, écart relatif ≤ 4,4e-7 à chaque couche, 4 mutations détectées au bon étage.
+
