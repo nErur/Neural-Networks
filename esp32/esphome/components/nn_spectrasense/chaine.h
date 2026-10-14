@@ -80,6 +80,9 @@ constexpr int kAct = 9;          // repos + 8 phases (ordre d'automate.py : ACT)
 // états HA de la machine (ordre d'automate.py : HA_MACHINE)
 enum Ha : uint8_t { kArret = 0, kVeilleHa, kMaintienHa, kChauffe, kRegulation, kBroyage, kExtraction, kFin };
 
+// compteur : un café = un cycle café terminé avec au moins ces durées publiées (automate.py)
+constexpr int kCafeBroyageMin = 5, kCafeExtractionMin = 5;
+
 struct Reglages {
   double seuil = 0.95, seuil_pic = 0.5;
   int tenue = 1;
@@ -97,6 +100,10 @@ class AutomateMachine {
   double t_reference() const { return long_ == Long::kVeille ? t_activite_ : long_ == Long::kMaintien ? t_pic_ : 0.0; }
   uint8_t ha() const;
   uint8_t activite() const { return act_; }
+  // à la seconde où un cycle café se termine (retour en veille ; jamais un cycle annulé) :
+  bool cafe_termine() const { return cafe_termine_; }
+  int cafe_broyage() const { return n_broyage_; }        // secondes publiées en broyage dans ce café
+  int cafe_extraction() const { return n_extraction_; }  // secondes publiées en extraction
 
  private:
   void publier_(double t, int nouv);
@@ -111,6 +118,8 @@ class AutomateMachine {
   double debut_t_{0}, debut_t_activite_{0};
   Long debut_long_{Long::kInconnu};
   bool debut_a_activite_{false};
+  bool cafe_termine_{false};
+  int n_broyage_{0}, n_extraction_{0};
 };
 
 class EntiteSimple {
@@ -136,6 +145,8 @@ struct Sortie {
   bool valide, porte, reseau;    // reseau : le réseau a tourné à cette seconde
   float q[kClasses];             // probabilités du réseau (repos = 1 si pas calculé)
   uint8_t machine, activite, grille_pain, bouilloire, inconnu;
+  bool cafe;                     // un café est compté à cette seconde
+  int cafe_broyage, cafe_extraction;   // ses durées publiées (s), si cycle café terminé
 };
 
 class Chaine {

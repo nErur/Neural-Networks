@@ -58,6 +58,8 @@ CONFIG_SCHEMA = cv.Schema(
         **{cv.Optional(k): binary_sensor.binary_sensor_schema(icon=i) for k, i in APPAREILS.items()},
         cv.Optional("gate"): binary_sensor.binary_sensor_schema(icon="mdi:gate-open",
                                                                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC),
+        cv.Optional("coffee_count"): sensor.sensor_schema(accuracy_decimals=0, icon="mdi:coffee",
+                                                          state_class=STATE_CLASS_TOTAL_INCREASING),
         cv.Optional("invalid_seconds"): sensor.sensor_schema(unit_of_measurement="s", accuracy_decimals=0,
                                                              icon="mdi:timer-alert-outline",
                                                              state_class=STATE_CLASS_TOTAL_INCREASING,
@@ -89,6 +91,8 @@ async def to_code(config):
     for k in [*APPAREILS, "gate"]:
         if k in config:
             cg.add(getattr(var, "set_%s_binary_sensor" % k)(await binary_sensor.new_binary_sensor(config[k])))
+    if "coffee_count" in config:
+        cg.add(var.set_coffee_count_sensor(await sensor.new_sensor(config["coffee_count"])))
     if "invalid_seconds" in config:
         cg.add(var.set_invalid_seconds_sensor(await sensor.new_sensor(config["invalid_seconds"])))
     for k in CAPTEURS:

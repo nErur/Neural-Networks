@@ -75,6 +75,10 @@ void NnSpectrasense::setup() {
     chaine_ = new ss::Chaine(model(), buf_a_, buf_b_, reglages_);
     power_->add_on_state_callback([this](float p) { this->mesure_(p); });
     pref_ = global_preferences->make_preference<Memoire>(0x53534D31UL /* "SSM1" */, true);
+    pref_cafes_ = global_preferences->make_preference<uint32_t>(0x53534331UL /* "SSC1" */, true);
+    if (!pref_cafes_.load(&n_cafes_)) n_cafes_ = 0;
+    ESP_LOGI(TAG, "compteur de cafés repris : %u", (unsigned) n_cafes_);
+    if (cafes_ != nullptr) cafes_->publish_state(n_cafes_);
   }
 }
 
@@ -164,6 +168,16 @@ void NnSpectrasense::recevoir(const ss::Case &c) {
     ESP_LOGD(TAG, "%6.0f W  %-20s %5.1f %%  machine %-10s%s%s%s", s.p_moy, M::kClasses[k], 100.0f * s.q[k],
              kEtatsMachine[s.machine], s.grille_pain ? "  grille-pain" : "", s.bouilloire ? "  bouilloire" : "",
              s.inconnu ? "  inconnu" : "");
+  if (s.cafe) {                                      // café compté : cycle terminé, broyage et extraction vus
+    n_cafes_++;
+    pref_cafes_.save(&n_cafes_);
+    ESP_LOGI(TAG, "café n° %u (broyage %d s, extraction %d s)", (unsigned) n_cafes_, s.cafe_broyage,
+             s.cafe_extraction);
+    if (cafes_ != nullptr) cafes_->publish_state(n_cafes_);
+  } else if (chaine_->machine().cafe_termine()) {
+    ESP_LOGI(TAG, "cycle café non compté (broyage %d s, extraction %d s : minimum %d s chacun)", s.cafe_broyage,
+             s.cafe_extraction, ss::kCafeBroyageMin);
+  }
   if (s.machine != pub_machine_) {
     if (pub_machine_ >= 0) ESP_LOGI(TAG, "machine : %s -> %s", kEtatsMachine[pub_machine_], kEtatsMachine[s.machine]);
     pub_machine_ = s.machine;

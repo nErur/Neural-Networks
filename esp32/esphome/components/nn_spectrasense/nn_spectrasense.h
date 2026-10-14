@@ -47,6 +47,7 @@ class NnSpectrasense : public Component, public ss::Recepteur {
   void set_unknown_load_binary_sensor(binary_sensor::BinarySensor *s) { inconnu_ = s; }
   void set_gate_binary_sensor(binary_sensor::BinarySensor *s) { porte_ = s; }
   void set_invalid_seconds_sensor(sensor::Sensor *s) { invalides_ = s; }
+  void set_coffee_count_sensor(sensor::Sensor *s) { cafes_ = s; }
 #ifdef USE_TIME
   // horloge réelle : l'état long de la machine survit aux redémarrages (mémoire en flash)
   void set_time(time::RealTimeClock *t) { time_ = t; }
@@ -85,6 +86,8 @@ class NnSpectrasense : public Component, public ss::Recepteur {
     int64_t epoch_ref;
   };
   ESPPreferenceObject pref_;
+  ESPPreferenceObject pref_cafes_;   // compteur de cafés, gardé en flash
+  uint32_t n_cafes_{0};
   bool restaure_{false};
   int mem_etat_{-1};
   int64_t mem_ref_{0};
@@ -108,6 +111,7 @@ class NnSpectrasense : public Component, public ss::Recepteur {
   binary_sensor::BinarySensor *inconnu_{nullptr};
   binary_sensor::BinarySensor *porte_{nullptr};
   sensor::Sensor *invalides_{nullptr};
+  sensor::Sensor *cafes_{nullptr};
   sensor::Sensor *inference_time_{nullptr};
   sensor::Sensor *max_error_{nullptr};
   text_sensor::TextSensor *model_id_{nullptr};

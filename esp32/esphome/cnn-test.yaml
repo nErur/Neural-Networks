@@ -98,6 +98,8 @@ nn_spectrasense:
     name: "Bouilloire"
   unknown_load:
     name: "Consommateur inconnu"
+  coffee_count:                 # total depuis la mise en service, gardé en flash (utility_meter côté HA)
+    name: "Cafés"
   gate:
     name: "SpectraSense porte"
   network_class:

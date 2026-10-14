@@ -25,7 +25,8 @@ struct Ecrivain : ss::Recepteur {
     const ss::Sortie s = chaine->traiter(c);
     fprintf(out, "%.0f,%.17g,%d,%d,%d", s.t, s.p_moy, s.valide, s.porte, s.reseau);
     for (int k = 0; k < ss::kClasses; k++) fprintf(out, ",%.9g", s.q[k]);
-    fprintf(out, ",%d,%d,%d,%d,%d,%.3f\n", s.machine, s.activite, s.grille_pain, s.bouilloire, s.inconnu, maintenant);
+    fprintf(out, ",%d,%d,%d,%d,%d,%d,%.3f\n", s.machine, s.activite, s.grille_pain, s.bouilloire, s.inconnu, s.cafe,
+            maintenant);
   }
 };
 
@@ -50,7 +51,7 @@ int main(int argc, char **argv) {
   double t, p;
   fprintf(out, "t,p_moy,valide,porte,reseau");
   for (int k = 0; k < ss::kClasses; k++) fprintf(out, ",q%d", k);
-  fprintf(out, ",machine,activite,grille_pain,bouilloire,inconnu,emis\n");
+  fprintf(out, ",machine,activite,grille_pain,bouilloire,inconnu,cafe,emis\n");
   if (argc >= 8) {
     const std::string e = argv[7];
     const ss::Long l = e == "arret" ? ss::Long::kArret : e == "veille" ? ss::Long::kVeille

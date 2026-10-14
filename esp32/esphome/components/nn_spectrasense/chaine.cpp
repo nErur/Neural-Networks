@@ -171,6 +171,7 @@ void AutomateMachine::publier_(double t, int nouv) {
   const int anc = act_;
   act_ = nouv;
   if (nouv == 0) {
+    if (cycle_ == Cycle::kCafe) cafe_termine_ = true;   // compteur (jamais un cycle annulé)
     if (cycle_ == Cycle::kAllumage || cycle_ == Cycle::kCafe) {
       long_ = Long::kVeille;
       t_activite_ = t;
@@ -187,6 +188,7 @@ void AutomateMachine::publier_(double t, int nouv) {
     cycle_ = est_allumage(nouv) ? Cycle::kAllumage : est_cafe(nouv) ? Cycle::kCafe
              : nouv == kPicA ? Cycle::kPic : Cycle::kExtinction;
     a_debut_ = true;
+    n_broyage_ = n_extraction_ = 0;
     debut_t_ = t;
     debut_long_ = long_;
     debut_t_activite_ = t_activite_;
@@ -215,6 +217,7 @@ void AutomateMachine::minuterie_(double t) {
 uint8_t AutomateMachine::ha() const { return act_ ? ha_de_act(act_) : ha_de_long(long_); }
 
 uint8_t AutomateMachine::pas(double t, const double q[kAct], bool porte) {
+  cafe_termine_ = false;
   minuterie_(t);
   double q2[kAct] = {0};
   int c = 0;
@@ -266,6 +269,8 @@ uint8_t AutomateMachine::pas(double t, const double q[kAct], bool porte) {
   } else {
     n_ = 0;
   }
+  if (act_ == kBroyageA) n_broyage_++;
+  else if (act_ == kExtractionA) n_extraction_++;
   return ha();
 }
 
@@ -331,6 +336,11 @@ Sortie Chaine::traiter(const Case &c) {
   s.inconnu = inconnu_.pas(s.q[11], s.porte);
   if (s.inconnu && !avant[2]) { machine_.annuler_cycle(c.t); s.machine = machine_.ha(); }
   s.activite = machine_.activite();
+  if (machine_.cafe_termine()) {
+    s.cafe_broyage = machine_.cafe_broyage();
+    s.cafe_extraction = machine_.cafe_extraction();
+    s.cafe = s.cafe_broyage >= kCafeBroyageMin && s.cafe_extraction >= kCafeExtractionMin;
+  }
   return s;
 }
 
