@@ -27,6 +27,7 @@ static nn::Layer g_ram_layers[M::kNumLayers];
 static nn::Model g_ram_model;
 static const nn::Model &model() { return *g_model; }
 
+static float input_[M::kInputSize];   // fenêtre en RAM, comme en usage réel (les références sont en flash)
 static float buf_a_[M::kMaxWidth];
 static float buf_b_[M::kMaxWidth];
 static float layer_out_[M::kNumLayers][M::kMaxWidth];
@@ -158,8 +159,9 @@ void NnSpectrasense::profile_step_() {
   const nn::Model &m = model();
   if (profile_index_ < M::kNumTestVectors) {
     nn::Profile prof{cycles, {0}, {0}};
+    memcpy(input_, M::kTestVectors[profile_index_].input, sizeof(input_));
     const uint32_t t0 = cycles();
-    nn::forward(m, M::kTestVectors[profile_index_].input, buf_a_, buf_b_, nullptr, &prof);
+    nn::forward(m, input_, buf_a_, buf_b_, nullptr, &prof);
     prof_total_ += cycles() - t0;
     for (int l = 0; l < m.n_layers && l < 8; l++) {
       prof_calc_[l] += prof.matvec[l];

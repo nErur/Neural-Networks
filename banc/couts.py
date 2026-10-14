@@ -11,14 +11,21 @@ FREQUENCE = 240e6
 CYCLES = {
     "mac": 5.3,          # multiplication-addition (mesuré : 5,2 à 5,5)
     "sigmoide": 436,     # expf + division (mesuré)
-    "softmax": 453,      # par neurone, sortie de 10 (mesuré : 453 à 532)
+    "softmax": 453,      # par neurone, sortie de 10 (mesuré : 453 à 532 ; 650 pour 12 sorties le 14/10)
     "tanh": 450,         # estimé (tanhf ≈ expf + division)
-    "relu": 46,          # mesuré sur 50 neurones, appel compris (estimé à 4 avant mesure)
-    "max": 3,            # estimé, par comparaison du max-pooling
+    "relu": 46,          # mesuré sur 50 neurones, appel compris (estimé à 4 avant mesure) ;
+                         # sur les 1024 sorties d'une convolution : 5,4 par neurone (14/10)
+    "max": 20,           # mesuré (14/10, SpectraSense) : 20 à 22 par comparaison, boucle comprise
+    # convolution 1D (mesuré le 14/10 sur 162dcb9fbf, poids en RAM) : la boucle intérieure ne fait que
+    # k tours ; son entrée/sortie coûte ~15 cycles par (filtre, position, canal) et le biais / la
+    # sortie ~19 par (filtre, position), en plus des 5,3 par multiplication-addition.
+    # Conv k5 sur 8 et 16 canaux : 8,5 à 8,7 cycles par mult.-add. (modèle : 8,6 et 8,4).
+    "conv_canal": 15,
+    "conv_position": 19,
     "fixe": 8000,        # mesuré : appel, recherche du maximum, chronométrage (7 150 à 9 000, ~33 µs)
 }
 # ce que le moteur C++ de l'ESP sait exécuter aujourd'hui
-# (conv1d et maxpool1d : moteur testé sur PC le 14/10/2026 ; coût sur la carte encore estimé, à profiler)
+# (conv1d et maxpool1d : testés sur PC et sur la carte le 14/10/2026, 16/16 fenêtres, 3,4 ms)
 DEPLOYABLE = {"types": {"dense", "conv1d", "maxpool1d"}, "activations": {"sigmoide", "relu", "tanh", "softmax"}}
 
 
@@ -43,8 +50,13 @@ def couts(cfg, n_classes=None):
         else:
             p, mac = 0, 0
         cyc = mac * CYCLES["mac"]
+        if c["type"] == "conv1d":
+            F, Lo = c["sortie"]
+            cyc += F * Lo * (c["entree"][0] * CYCLES["conv_canal"] + CYCLES["conv_position"])
         if c["type"] == "maxpool1d":
             cyc += n_sortie * (c["taille"] - 1) * CYCLES["max"]
+        elif c["type"] == "conv1d" and c["act"] == "relu":
+            cyc += n_sortie * 5.4
         else:
             cyc += n_sortie * CYCLES[c["act"]]
         params += p
