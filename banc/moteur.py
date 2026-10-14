@@ -181,8 +181,8 @@ def plan_couches(cfg, forme_entree, n_classes):
 
 
 def initialiser(plan, cfg, graine):
-    """Poids de départ d'UN réseau (numpy float64), comme network2 : biais N(0, 1),
-    poids N(0, 1/n_entrée) (ou N(0, 2/n_entrée) pour ReLU, « He »)."""
+    """Poids de départ d'UN réseau (numpy float64), comme network2 : biais N(0, 1) (ou 0 avec
+    init_biais = "zero"), poids N(0, 1/n_entrée) (ou N(0, 2/n_entrée) pour ReLU, « He »)."""
     rng = np.random.default_rng(graine)
     params = []
     for c in plan:
@@ -195,7 +195,9 @@ def initialiser(plan, cfg, graine):
             C = c["entree"][0]
             fan_in, forme_W, forme_b = C * c["noyau"], (c["canaux"], C, c["noyau"]), (c["canaux"],)
         gain = 2.0 if (cfg["init"] == "auto" and c["act"] == "relu") or cfg["init"] == "he" else 1.0
-        b = rng.standard_normal(forme_b)
+        b = rng.standard_normal(forme_b)               # tiré même si inutilisé : même suite aléatoire pour W
+        if cfg.get("init_biais", "normal") == "zero":
+            b = np.zeros(forme_b)
         W = rng.standard_normal(forme_W) * math.sqrt(gain / fan_in)
         params.append({"W": W, "b": b})
     return params

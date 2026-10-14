@@ -16,6 +16,8 @@ DEFAUT = {
     # --- réseau : couches cachées ; la couche de sortie softmax est ajoutée d'office
     "couches": [{"type": "dense", "n": 30, "act": "sigmoide"}],
     "init": "auto",                   # auto : 1/sqrt(n) (sigmoïde, tanh), sqrt(2/n) (ReLU)
+    "init_biais": "normal",           # normal : N(0, 1) comme network2 ; zero : biais à 0 (conseillé avec ReLU :
+                                      # un biais tiré négatif peut « tuer » un neurone dès le départ)
     # --- apprentissage
     "epoques": 30,
     "batch": 10,
@@ -64,6 +66,8 @@ def completer(cfg=None, **modifs):
             raise ValueError("type de couche inconnu : %r" % couche)
         if couche["type"] in ("dense", "conv1d") and couche.get("act", "sigmoide") not in ACTIVATIONS:
             raise ValueError("activation inconnue : %r" % couche)
+    if c["init_biais"] not in ("normal", "zero"):
+        raise ValueError("init_biais : normal ou zero")
     if c["planning"] not in ("cosinus", "constant"):
         raise ValueError("planning : cosinus ou constant")
     if c["precision"] not in ("float32", "float64"):
@@ -74,6 +78,8 @@ def completer(cfg=None, **modifs):
 def identifiant(cfg):
     """Empreinte courte de la configuration (la note n'en fait pas partie)."""
     c = {k: v for k, v in completer(cfg).items() if k != "note"}
+    if c["init_biais"] == "normal":   # valeur historique : identifiants des essais antérieurs inchangés
+        del c["init_biais"]
     return hashlib.sha1(json.dumps(c, sort_keys=True).encode()).hexdigest()[:10]
 
 
@@ -96,9 +102,9 @@ def resume(cfg):
         else:
             morceaux.append("P%d" % couche["taille"])
     opts = ",".join("%s=%s" % kv for kv in sorted(c["tache_options"].items()))
-    return "%s%s [%s] η=%g λ=%g m=%d %dép g=%d" % (
+    return "%s%s [%s] η=%g λ=%g m=%d %dép g=%d%s" % (
         c["tache"], "(%s)" % opts if opts else "", "-".join(morceaux), c["eta"], c["lmbda"],
-        c["batch"], c["epoques"], c["graine"])
+        c["batch"], c["epoques"], c["graine"], " b0" if c["init_biais"] == "zero" else "")
 
 
 def _abr(couche):
