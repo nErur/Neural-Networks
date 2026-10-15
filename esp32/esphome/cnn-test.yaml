@@ -104,6 +104,8 @@ nn_spectrasense:
     name: "SpectraSense porte"
   network_class:
     name: "SpectraSense classe du réseau"
+  network_confidence:           # % de la classe dominante (si la classe change ou bouge de 2 points)
+    name: "SpectraSense confiance"
   invalid_seconds:
     name: "SpectraSense secondes invalides"
   model_id:

@@ -60,6 +60,9 @@ CONFIG_SCHEMA = cv.Schema(
                                                                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC),
         cv.Optional("coffee_count"): sensor.sensor_schema(accuracy_decimals=0, icon="mdi:coffee",
                                                           state_class=STATE_CLASS_TOTAL_INCREASING),
+        cv.Optional("network_confidence"): sensor.sensor_schema(unit_of_measurement="%", accuracy_decimals=0,
+                                                                icon="mdi:gauge", state_class=STATE_CLASS_MEASUREMENT,
+                                                                entity_category=ENTITY_CATEGORY_DIAGNOSTIC),
         cv.Optional("invalid_seconds"): sensor.sensor_schema(unit_of_measurement="s", accuracy_decimals=0,
                                                              icon="mdi:timer-alert-outline",
                                                              state_class=STATE_CLASS_TOTAL_INCREASING,
@@ -93,6 +96,8 @@ async def to_code(config):
             cg.add(getattr(var, "set_%s_binary_sensor" % k)(await binary_sensor.new_binary_sensor(config[k])))
     if "coffee_count" in config:
         cg.add(var.set_coffee_count_sensor(await sensor.new_sensor(config["coffee_count"])))
+    if "network_confidence" in config:
+        cg.add(var.set_network_confidence_sensor(await sensor.new_sensor(config["network_confidence"])))
     if "invalid_seconds" in config:
         cg.add(var.set_invalid_seconds_sensor(await sensor.new_sensor(config["invalid_seconds"])))
     for k in CAPTEURS:

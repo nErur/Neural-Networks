@@ -183,6 +183,12 @@ void NnSpectrasense::recevoir(const ss::Case &c) {
     pub_machine_ = s.machine;
     if (machine_ != nullptr) machine_->publish_state(kEtatsMachine[s.machine]);
   }
+  // confiance de la classe dominante (%) : publiée si la classe change ou si elle bouge d'au moins 2 points
+  const float conf = 100.0f * s.q[k];
+  if (confiance_ != nullptr && (k != pub_classe_ || fabsf(conf - pub_confiance_) >= 2.0f)) {
+    pub_confiance_ = conf;
+    confiance_->publish_state(conf);
+  }
   if (k != pub_classe_) {
     pub_classe_ = k;
     if (classe_ != nullptr) classe_->publish_state(M::kClasses[k]);
