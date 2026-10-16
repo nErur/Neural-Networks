@@ -108,6 +108,31 @@ nn_spectrasense:
     name: "SpectraSense confiance"
   invalid_seconds:
     name: "SpectraSense secondes invalides"
+  class_probabilities:          # probabilités brutes du réseau (%), avant l'automate
+    repos:
+      name: "SpectraSense p repos"
+    allumage_chauffe:
+      name: "SpectraSense p allumage chauffe"
+    allumage_regulation:
+      name: "SpectraSense p allumage régulation"
+    allumage_fin:
+      name: "SpectraSense p allumage fin"
+    cafe_broyage:
+      name: "SpectraSense p café broyage"
+    cafe_extraction:
+      name: "SpectraSense p café extraction"
+    cafe_fin:
+      name: "SpectraSense p café fin"
+    pic_maintien:
+      name: "SpectraSense p pic de maintien"
+    extinction:
+      name: "SpectraSense p extinction"
+    grille_pain:
+      name: "SpectraSense p grille-pain"
+    bouilloire:
+      name: "SpectraSense p bouilloire"
+    consommateur_inconnu:
+      name: "SpectraSense p consommateur inconnu"
   model_id:
     name: "SpectraSense modèle"
   autotest:

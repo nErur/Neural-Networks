@@ -49,6 +49,8 @@ class NnSpectrasense : public Component, public ss::Recepteur {
   void set_invalid_seconds_sensor(sensor::Sensor *s) { invalides_ = s; }
   void set_coffee_count_sensor(sensor::Sensor *s) { cafes_ = s; }
   void set_network_confidence_sensor(sensor::Sensor *s) { confiance_ = s; }
+  // probabilité brute de la classe k du réseau (%), avant l'automate
+  void set_class_probability_sensor(int k, sensor::Sensor *s) { if (k >= 0 && k < ss::kClasses) proba_[k] = s; }
 #ifdef USE_TIME
   // horloge réelle : l'état long de la machine survit aux redémarrages (mémoire en flash)
   void set_time(time::RealTimeClock *t) { time_ = t; }
@@ -115,6 +117,9 @@ class NnSpectrasense : public Component, public ss::Recepteur {
   sensor::Sensor *cafes_{nullptr};
   sensor::Sensor *confiance_{nullptr};
   float pub_confiance_{-100.0f};
+  sensor::Sensor *proba_[ss::kClasses]{};
+  float pub_proba_[ss::kClasses]{-100.0f, -100.0f, -100.0f, -100.0f, -100.0f, -100.0f,
+                                 -100.0f, -100.0f, -100.0f, -100.0f, -100.0f, -100.0f};
   sensor::Sensor *inference_time_{nullptr};
   sensor::Sensor *max_error_{nullptr};
   text_sensor::TextSensor *model_id_{nullptr};

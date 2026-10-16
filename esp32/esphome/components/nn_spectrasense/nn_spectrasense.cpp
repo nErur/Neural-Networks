@@ -189,6 +189,16 @@ void NnSpectrasense::recevoir(const ss::Case &c) {
     pub_confiance_ = conf;
     confiance_->publish_state(conf);
   }
+  // les 12 probabilités brutes (%) : publiées quand elles bougent d'au moins 1 point
+  // (porte fermée : repos = 100, les autres = 0, publiés une seule fois)
+  for (int i = 0; i < ss::kClasses; i++) {
+    if (proba_[i] == nullptr) continue;
+    const float v = 100.0f * s.q[i];
+    if (fabsf(v - pub_proba_[i]) >= 1.0f) {
+      pub_proba_[i] = v;
+      proba_[i]->publish_state(v);
+    }
+  }
   if (k != pub_classe_) {
     pub_classe_ = k;
     if (classe_ != nullptr) classe_->publish_state(M::kClasses[k]);

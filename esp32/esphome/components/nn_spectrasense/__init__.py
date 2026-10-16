@@ -37,6 +37,10 @@ TEXTES = {
     "autotest": "mdi:clipboard-check-outline",
     "network_class": "mdi:label-outline",       # classe dominante du réseau (diagnostic)
 }
+# probabilités brutes du réseau, dans l'ordre des sorties (fenetres.py : CLASSES_LIGNE)
+CLASSES = ["repos", "allumage_chauffe", "allumage_regulation", "allumage_fin", "cafe_broyage",
+           "cafe_extraction", "cafe_fin", "pic_maintien", "extinction", "grille_pain", "bouilloire",
+           "consommateur_inconnu"]
 # états publiés : machine (8 états) et appareils simples (marche / arrêt)
 APPAREILS = {
     "toaster": "mdi:toaster",
@@ -63,6 +67,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("network_confidence"): sensor.sensor_schema(unit_of_measurement="%", accuracy_decimals=0,
                                                                 icon="mdi:gauge", state_class=STATE_CLASS_MEASUREMENT,
                                                                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC),
+        cv.Optional("class_probabilities"): cv.Schema(
+            {cv.Optional(k): sensor.sensor_schema(unit_of_measurement="%", accuracy_decimals=0, icon="mdi:percent",
+                                                  state_class=STATE_CLASS_MEASUREMENT,
+                                                  entity_category=ENTITY_CATEGORY_DIAGNOSTIC) for k in CLASSES}),
         cv.Optional("invalid_seconds"): sensor.sensor_schema(unit_of_measurement="s", accuracy_decimals=0,
                                                              icon="mdi:timer-alert-outline",
                                                              state_class=STATE_CLASS_TOTAL_INCREASING,
@@ -98,6 +106,9 @@ async def to_code(config):
         cg.add(var.set_coffee_count_sensor(await sensor.new_sensor(config["coffee_count"])))
     if "network_confidence" in config:
         cg.add(var.set_network_confidence_sensor(await sensor.new_sensor(config["network_confidence"])))
+    for k, nom in enumerate(CLASSES):
+        if nom in config.get("class_probabilities", {}):
+            cg.add(var.set_class_probability_sensor(k, await sensor.new_sensor(config["class_probabilities"][nom])))
     if "invalid_seconds" in config:
         cg.add(var.set_invalid_seconds_sensor(await sensor.new_sensor(config["invalid_seconds"])))
     for k in CAPTEURS:
