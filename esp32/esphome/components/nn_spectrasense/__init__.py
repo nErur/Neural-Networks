@@ -28,6 +28,7 @@ CONF_THRESHOLD = "threshold"          # seuil de confiance pour publier (automat
 CONF_PEAK_THRESHOLD = "peak_threshold"
 CONF_TIME_ID = "time_id"              # horloge réelle : état long de la machine gardé en flash
 CONF_HOLD = "hold"                    # secondes consécutives au-dessus du seuil (automate : tenue)
+CONF_OFF_HOLD = "off_hold"            # repos continu avant « arrêt » d'un appareil simple (automate : tenue_arret)
 CAPTEURS = {
     "inference_time": ("µs", 0, "mdi:timer-outline"),
     "max_error": (None, 9, "mdi:delta"),
@@ -58,6 +59,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_THRESHOLD, default=0.95): cv.float_range(min=0.5, max=1.0),
         cv.Optional(CONF_PEAK_THRESHOLD, default=0.5): cv.float_range(min=0.0, max=1.0),
         cv.Optional(CONF_HOLD, default=1): cv.int_range(min=1, max=30),
+        cv.Optional(CONF_OFF_HOLD, default="8s"): cv.All(cv.positive_time_period_seconds,
+                                                          cv.Range(min=cv.TimePeriod(seconds=1), max=cv.TimePeriod(seconds=120))),
         cv.Optional("machine"): text_sensor.text_sensor_schema(icon="mdi:coffee-maker-outline"),
         **{cv.Optional(k): binary_sensor.binary_sensor_schema(icon=i) for k, i in APPAREILS.items()},
         cv.Optional("gate"): binary_sensor.binary_sensor_schema(icon="mdi:gate-open",
@@ -96,7 +99,8 @@ async def to_code(config):
     if CONF_TIME_ID in config:
         cg.add(var.set_time(await cg.get_variable(config[CONF_TIME_ID])))
     cg.add(var.set_clock_delay(config[CONF_CLOCK_DELAY].total_milliseconds / 1000.0))
-    cg.add(var.set_reglages(config[CONF_THRESHOLD], config[CONF_PEAK_THRESHOLD], config[CONF_HOLD]))
+    cg.add(var.set_reglages(config[CONF_THRESHOLD], config[CONF_PEAK_THRESHOLD], config[CONF_HOLD],
+                            config[CONF_OFF_HOLD].total_seconds))
     if "machine" in config:
         cg.add(var.set_machine_text_sensor(await text_sensor.new_text_sensor(config["machine"])))
     for k in [*APPAREILS, "gate"]:

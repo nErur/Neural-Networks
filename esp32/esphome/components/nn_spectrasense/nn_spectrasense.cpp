@@ -260,8 +260,8 @@ bool NnSpectrasense::copy_weights_to_ram_() {
 void NnSpectrasense::dump_config() {
   ESP_LOGCONFIG(TAG, "nn_spectrasense :");
   if (power_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Chaîne en direct : seuil %.2f, tenue %d, seuil pic %.2f, horloge en retard de %.1f s",
-                  reglages_.seuil, reglages_.tenue, reglages_.seuil_pic, clock_delay_);
+    ESP_LOGCONFIG(TAG, "  Chaîne en direct : seuil %.2f, tenue %d, seuil pic %.2f, arrêt après %d s, horloge en retard de %.1f s",
+                  reglages_.seuil, reglages_.tenue, reglages_.seuil_pic, reglages_.tenue_arret, clock_delay_);
 #ifdef USE_TIME
     ESP_LOGCONFIG(TAG, "  État long gardé en flash : %s", time_ != nullptr ? "oui (heure de HA)" : "non (pas de time_id)");
 #endif

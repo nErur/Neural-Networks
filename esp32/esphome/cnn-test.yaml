@@ -89,6 +89,7 @@ nn_spectrasense:
   clock_delay: 2s               # horloge en retard (rafales HA) ; 0s sur la carte PZEM
   threshold: 0.95               # réglages de l'automate retenus sur la validation
   hold: 1
+  off_hold: 8s                  # repos continu avant de repasser grille-pain / bouilloire / inconnu à « arrêt »
   peak_threshold: 0.5
   machine:
     name: "Machine à café"

@@ -86,6 +86,7 @@ constexpr int kCafeBroyageMin = 5, kCafeExtractionMin = 5;
 struct Reglages {
   double seuil = 0.95, seuil_pic = 0.5;
   int tenue = 1;
+  int tenue_arret = 8;   // s de repos continu avant de publier « arrêt » (appareils simples)
 };
 
 class AutomateMachine {

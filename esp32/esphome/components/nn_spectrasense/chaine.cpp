@@ -92,7 +92,7 @@ void EntreeHa::horloge(double t, Recepteur &r) {
 enum : int { kRepos = 0, kChauffeA, kRegulationA, kFinAllumage, kBroyageA, kExtractionA, kFinCafe, kPicA, kExtinctionA };
 static const double kFinMaintien = 2.5 * 222, kExtinctionSansPic = 140 * 60;
 static const double kPicMax = 6, kTenuePorte = 5, kAnnulation = 60;
-static const int kTenueFinCycle = 6, kTenueArret = 12;
+static const int kTenueFinCycle = 6;
 
 static bool est_allumage(int a) { return a == kChauffeA || a == kRegulationA || a == kFinAllumage; }
 static bool est_cafe(int a) { return a == kBroyageA || a == kExtractionA || a == kFinCafe; }
@@ -280,7 +280,7 @@ uint8_t EntiteSimple::pas(double q_marche, bool porte) {
   const double pc = c ? q : 1.0 - q;
   if (c != etat_ && pc >= r_.seuil) {
     n_ += 1;
-    const int besoin = c == 1 ? r_.tenue : (r_.tenue > kTenueArret ? r_.tenue : kTenueArret);
+    const int besoin = c == 1 ? r_.tenue : (r_.tenue > r_.tenue_arret ? r_.tenue : r_.tenue_arret);
     if (n_ >= besoin) {
       etat_ = (uint8_t) c;
       n_ = 0;

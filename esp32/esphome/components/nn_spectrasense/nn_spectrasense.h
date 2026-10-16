@@ -35,10 +35,11 @@ class NnSpectrasense : public Component, public ss::Recepteur {
   // chaîne en direct
   void set_power_sensor(sensor::Sensor *s) { power_ = s; }
   void set_clock_delay(float s) { clock_delay_ = s; }
-  void set_reglages(float seuil, float seuil_pic, int tenue) {
+  void set_reglages(float seuil, float seuil_pic, int tenue, int tenue_arret) {
     reglages_.seuil = seuil;
     reglages_.seuil_pic = seuil_pic;
     reglages_.tenue = tenue;
+    reglages_.tenue_arret = tenue_arret;
   }
   void set_machine_text_sensor(text_sensor::TextSensor *s) { machine_ = s; }
   void set_network_class_text_sensor(text_sensor::TextSensor *s) { classe_ = s; }
