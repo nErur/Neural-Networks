@@ -53,16 +53,22 @@ paramètres → préparation → essai interactif → analyses → comparaison �
 - Tâche `spectrasense` (`taches.SpectraSense`) : fenêtres de la ligne arrière-cuisine (ESP + PZEM),
   forme (canaux, longueur), **12 classes** (repos, 8 phases de la machine à café, grille-pain,
   bouilloire, consommateur inconnu ; une seule chose tourne à la fois), seulement les secondes
-  « porte ouverte ». Options : `longueur` (128), `canaux` ("log+lin"), `copies` (2), `synth` (0.10),
-  `equilibrage` ("racine").
+  « porte ouverte ». Options : `longueur`, `canaux`, `copies`, `synth`, `equilibrage`.
+- **Les valeurs par défaut de `config.py` (128, synth 0.10, racine) ne sont pas celles du modèle déployé.**
+  Modèle déployé `162dcb9fbf` : `longueur` 130, `canaux` "log+lin", `copies` 2, `synth` 0.22,
+  `equilibrage` "aucun", ReLU, `init_biais` "zero" (jeu `L130_log+lin_c2_s22_aucun`).
+  Copie versionnée des poids : `esp32/modeles/spectrasense_162dcb9fbf.npz`.
 - Les fenêtres sont fabriquées côté SpectraSense (dépôt voisin, ou variable `SPECTRASENSE`) :
-  `python tools/dataset/fenetres.py --longueur 128 --canaux log,lin` ; le banc ne fait que les lire.
+  `python tools/dataset/fenetres.py --longueur 130 --canaux log,lin --synth 0.22 --equilibrage aucun` ; le banc ne fait que les lire.
 - La précision par fenêtre sert au tri ; le vrai critère (latence, fausses alertes / semaine) :
   `python tools/evaluation/evaluer.py --source reseau --modele <banc/resultats/modeles/ID.npz>`
-  (dans le dépôt spectrasense).
-- Les convolutions 1D existent dans le banc ; le moteur C++ de l'ESP ne les exécute pas encore
-  (les essais conv1d sont marqués « pas encore déployable »).
+  (dans le dépôt spectrasense, **sur la validation**).
+- Les convolutions 1D sont déployables : `esp32/python/export_conv.py <id>` (voir `esp32/README.md`).
+  `export_esp.py` ne gère que les réseaux denses MNIST.
+- `init_biais` : "normal" (N(0, 1), comme network2) ou "zero". Avec ReLU, préférer "zero" ; même ainsi,
+  le modèle déployé a 7 filtres morts (sortie toujours nulle, `esp32/ESSAIS.md` section 8.3).
 - Préférer **ReLU** dans les couches cachées : environ 46 cycles contre ~436 pour une sigmoïde sur l'ESP.
+- Coûts recalés sur le profilage de `162dcb9fbf` (3,4 ms mesurés sur la carte).
 
 ## Limites connues
 

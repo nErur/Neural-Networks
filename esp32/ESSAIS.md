@@ -279,6 +279,48 @@ Sur la validation, en ne répondant qu'aux exemples les plus sûrs (même couver
 
 ---
 
+## 8. SpectraSense sur l'ESP (14 au 17 octobre 2026)
+
+Réseau `162dcb9fbf` (C8k3-P2-C16k5-P2-C16k5-P2-D24-12). Détails des choix d'apprentissage :
+`spectrasense/tools/evaluation/RESULTATS_TEST.md`.
+
+### 8.1 Inférence
+
+| Mesure | Valeur |
+|---|---|
+| Autotest sur la carte | 16/16 fenêtres conformes, écart relatif max 4,1e-7 |
+| Temps par inférence (poids en RAM) | 3,4 ms mesurés (somme des couches 3,4 ms), 3,7 ms en autotest |
+| Convolution, noyau 5 | ≈ 8,5 cycles par multiplication-addition |
+| Convolution, noyau 3 (première couche) | ≈ 20 cycles par opération |
+| Max-pooling | ≈ 20 cycles par comparaison |
+| Dense | ≈ 5,2 cycles par opération |
+
+Décision : pas d'optimisation du moteur (réordonner les boucles de conv1d ferait gagner ≈ 1,4 ms,
+inutile à une inférence par seconde). `banc/couts.py` est recalé sur ces mesures.
+
+### 8.2 Chaîne en direct
+
+| Choix | Pourquoi | Mesure |
+|---|---|---|
+| Rafales HA re-datées en direct (`EntreeHa`) | ≈ 2 % des lectures arrivent groupées à quelques ms ; l'entraînement les a re-datées (`debrouiller_rafales`) | sans re-datage, un pic de maintien de 1 s disparaît |
+| Horloge en retard de 2 s (`clock_delay`) | une rafale tardive doit retrouver sa place | 15 jours rejoués : 5 s d'état différentes de Python au total ; 99 % des publications < 2,1 s après la seconde concernée (0 différence à 5 s, mais 99 % à 5 s) |
+| Buffer de sortie de l'adaptateur supprimé (récepteur appelé case par case) | un trou de plus de 64 s perdait des secondes | journée de validation 09/04 corrigée |
+| État long gardé en flash avec l'heure de HA | après un redémarrage, arrêt et veille sont indiscernables (0 W) | 14/10 : allumage publié « broyage » après un flash |
+| Cycle commencé dans l'état inconnu : changement de famille allumage ↔ café | le réseau ne distingue un allumage d'un café qu'après ≈ 25 s | validation inchangée |
+| Appareils simples : « arrêt » après 8 s (au lieu de 12) | 12 s fusionnait deux utilisations du consommateur inconnu | validation : inconnu 33/34 (au lieu de 30/34), 0 coupure, 0 fausse alerte ; à 3 et 5 s, coupures sur l'inconnu |
+| Compteur de cafés : cycle café terminé avec ≥ 5 s de broyage et ≥ 5 s d'extraction publiés | écarte les fins d'allumage et les consommateurs plats | validation : 48/48, 0 en trop (plateau parfait de 5 à 10 s) |
+
+### 8.3 Ce que montrent les poids
+
+- Filtres morts (sortie toujours nulle) : couche 1, filtres 1 et 5 ; couche 2, filtres 1, 3, 4 et 14 ;
+  couche 3, filtre 0. Piste pour le prochain entraînement : Leaky ReLU ou petit biais positif au départ.
+- Couche 1 : niveau, présence, forte puissance, chute, calme. Couche 2 : filtre 2 « repos »,
+  filtre 9 « long plateau » (grille-pain), filtre 13 « fin de forte puissance ».
+- Plus des deux tiers des paramètres sont dans la couche dense (5 016 sur 7 324), qui encode la position
+  dans la fenêtre de 130 s.
+
+---
+
 ## Matériel de référence
 
 - Carte `cnn-test` : ESP-WROOM-32, puce **ESP32-D0WD-V3 rév. 3.1**, deux cœurs à **240 MHz**,

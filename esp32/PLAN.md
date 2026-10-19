@@ -1,5 +1,8 @@
 # MNIST sur ESP32 via ESPHome — plan du pipeline
 
+> **Historique.** Plan de départ (MNIST), entièrement réalisé. L'état actuel (SpectraSense en direct)
+> est décrit dans `README.md` et `ESSAIS.md` (section 8).
+
 10 octobre 2026 · Antoine
 
 Version de travail : [doc en ligne](https://claude.ai/code/artifact/04314444-caab-432e-8891-45f4bc370ed9)
