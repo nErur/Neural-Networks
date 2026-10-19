@@ -12,3 +12,7 @@ __pycache__/
 
 # Banc d'essai : résultats régénérables
 /banc/resultats/
+
+# Expériences : données et résultats régénérables
+/experiences/donnees/
+/experiences/resultats/
