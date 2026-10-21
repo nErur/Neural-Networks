@@ -64,13 +64,13 @@ class AudioUdp : public PollingComponent {
   uint32_t seq_{0};
   uint64_t index_{0};
   int64_t t_dernier_morceau_{0};
-  int32_t hp_x_{0};  // passe-haut du niveau (tâche du micro)
-  float hp_y_{0.0f};
+  // passe-haut du niveau (coefficients calculés au démarrage, état tenu par la tâche du micro)
+  float hp_b0_{1.0f}, hp_a1_{0.0f}, hp_a2_{0.0f};
+  float hp_z1_{0.0f}, hp_z2_{0.0f};
 
   // statistiques partagées avec update() (boucle principale)
   portMUX_TYPE verrou_ = portMUX_INITIALIZER_UNLOCKED;
-  int64_t somme_{0};
-  int64_t somme2_{0};
+  double somme2_{0.0};  // somme des carrés du signal filtré (pleine échelle = 1)
   uint32_t n_stats_{0};
   int32_t max_abs_{0};
   uint32_t envoyes_{0};

@@ -15,7 +15,7 @@ namespace esphome::audio_udp {
 static const char *const TAG = "audio_udp";
 static const int64_t TROU_US = 200000;  // plus de 200 ms sans données : discontinuité (micro arrêté…)
 static const float PLEINE_ECHELLE = 8388608.0f;  // 2^23
-static const float PASSE_HAUT_A = 0.97f;         // coupure ≈ (1 - a) × 16 000 / 2π ≈ 76 Hz
+static const float COUPURE_NIVEAU_HZ = 100.0f;   // passe-haut du capteur de niveau (Butterworth, 2e ordre)
 
 static void ecrire_u32(uint8_t *p, uint32_t v) {
   for (int i = 0; i < 4; i++)
@@ -49,6 +49,14 @@ void AudioUdp::setup() {
     return;
   }
 
+  // passe-haut du niveau : Butterworth du 2e ordre par transformation bilinéaire
+  const float k = tanf((float) M_PI * COUPURE_NIVEAU_HZ / (float) info.get_sample_rate());
+  const float q = (float) M_SQRT1_2;
+  const float n = 1.0f / (1.0f + k / q + k * k);
+  this->hp_b0_ = n;
+  this->hp_a1_ = 2.0f * (k * k - 1.0f) * n;
+  this->hp_a2_ = (1.0f - k / q + k * k) * n;
+
   this->paquet_.assign(TAILLE_ENTETE + OCTETS_PAR_ECHANTILLON * this->par_paquet_, 0);
   this->session_ = esp_random();
   memcpy(this->paquet_.data(), "SSA1", 4);
@@ -66,7 +74,7 @@ void AudioUdp::recevoir_(const std::vector<uint8_t> &donnees) {
 
   const size_t n = donnees.size() / 4;
   const uint8_t *src = donnees.data();
-  int64_t somme = 0, somme2 = 0;
+  float somme2 = 0.0f;  // un morceau (16 ms) : pas de perte de précision en float
   int32_t max_abs = 0;
 
   for (size_t i = 0; i < n; i++, src += 4) {
@@ -82,13 +90,14 @@ void AudioUdp::recevoir_(const std::vector<uint8_t> &donnees) {
     dst[2] = src[3];
 
     int32_t x = ((int32_t) ((uint32_t) src[1] << 8 | (uint32_t) src[2] << 16 | (uint32_t) src[3] << 24)) >> 8;
-    // niveau : passe-haut du 1er ordre (~75 Hz) ; l'INMP441 dérive lentement (infrasons à ~-30 dBFS)
-    // et masquerait le son audible (~-70 dBFS dans une cuisine calme). La crête reste brute (saturation).
-    this->hp_y_ = PASSE_HAUT_A * (this->hp_y_ + (float) (x - this->hp_x_));
-    this->hp_x_ = x;
-    int32_t y = (int32_t) this->hp_y_;
-    somme += y;
-    somme2 += (int64_t) y * y;
+    // niveau : après un passe-haut à 100 Hz (forme directe II transposée, b1 = -2 b0, b2 = b0).
+    // Sous 100 Hz le micro capte surtout des fluctuations de pression (souffle, ~-30 dBFS vers 1-2 Hz)
+    // qui masqueraient le son audible (~-65 dBFS au bureau). La crête reste brute (saturation).
+    const float xf = (float) x / PLEINE_ECHELLE;
+    const float y = this->hp_b0_ * xf + this->hp_z1_;
+    this->hp_z1_ = -2.0f * this->hp_b0_ * xf - this->hp_a1_ * y + this->hp_z2_;
+    this->hp_z2_ = this->hp_b0_ * xf - this->hp_a2_ * y;
+    somme2 += y * y;
     int32_t a = x < 0 ? -x : x;
     if (a > max_abs)
       max_abs = a;
@@ -99,7 +108,6 @@ void AudioUdp::recevoir_(const std::vector<uint8_t> &donnees) {
   }
 
   portENTER_CRITICAL(&this->verrou_);
-  this->somme_ += somme;
   this->somme2_ += somme2;
   this->n_stats_ += n;
   if (max_abs > this->max_abs_)
@@ -123,11 +131,11 @@ void AudioUdp::envoyer_() {
 
 void AudioUdp::update() {
   portENTER_CRITICAL(&this->verrou_);
-  int64_t somme = this->somme_, somme2 = this->somme2_;
+  double somme2 = this->somme2_;
   uint32_t n = this->n_stats_;
   int32_t max_abs = this->max_abs_;
   uint32_t envoyes = this->envoyes_, echecs = this->echecs_;
-  this->somme_ = this->somme2_ = 0;
+  this->somme2_ = 0.0;
   this->n_stats_ = 0;
   this->max_abs_ = 0;
   portEXIT_CRITICAL(&this->verrou_);
@@ -138,12 +146,10 @@ void AudioUdp::update() {
     this->erreurs_->publish_state(echecs);
   if (n == 0)
     return;  // micro arrêté : on ne publie pas de niveau
-  // niveau efficace sans la composante continue (l'INMP441 en a une petite)
-  double moy = (double) somme / n;
-  double var = (double) somme2 / n - moy * moy;
-  double rms = var > 0 ? std::sqrt(var) : 0.0;
+  // niveau efficace au-dessus de 100 Hz, en dBFS (le signal filtré est déjà rapporté à la pleine échelle)
+  double rms = std::sqrt(somme2 / n);
   if (this->niveau_ != nullptr)
-    this->niveau_->publish_state(rms > 0 ? 20.0f * log10f((float) rms / PLEINE_ECHELLE) : -144.0f);
+    this->niveau_->publish_state(rms > 0 ? 20.0f * log10f((float) rms) : -144.0f);
   if (this->crete_ != nullptr)
     this->crete_->publish_state(max_abs > 0 ? 20.0f * log10f((float) max_abs / PLEINE_ECHELLE) : -144.0f);
 }
