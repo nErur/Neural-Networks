@@ -323,9 +323,29 @@ inutile à une inférence par seconde). `banc/couts.py` est recalé sur ces mesu
 
 ## 9. Micro INMP441 et son en UDP (21 octobre 2026)
 
-Composant `audio_udp`, config `cnn-test-micro.yaml` : son brut (16 kHz, 24 bits, paquets de 30 ms,
-48 ko/s) envoyé au PC (`spectrasense/tools/audio/recepteur.py`), en plus des deux réseaux.
-Câblage : SCK GPIO26, WS GPIO25, SD GPIO33, L/R à la masse (`channel: left` fonctionne).
+But : enregistrer le son des machines (café, grille-pain) pour des frontières de phase physiques
+(dataset), pas pour la production. Composant `audio_udp`, config `cnn-test-micro.yaml` (copie de
+`cnn-test.yaml` + micro : retour arrière = recoller `cnn-test.yaml`). Le son part brut au PC
+(`spectrasense/tools/audio/recepteur.py`), en plus des deux réseaux qui tournent sur la carte.
+
+### 9.1 Choix
+
+| Choix | Raison |
+|---|---|
+| Câblage SCK GPIO26, WS GPIO25, SD GPIO33, L/R à la masse, VDD 3V3 | broches libres, aucune ne sert au démarrage ; `channel: left` fonctionne |
+| Lecture 16 kHz, 32 bits, mono ; envoi brut en UDP, aucun traitement sur la carte | la carte reste libre pour les réseaux ; tout se fait sur le PC, sans limite de mémoire |
+| Paquets de 30 ms (480 échantillons), en-tête : session, seq, index, t_us | seq = pertes visibles ; index = position exacte de chaque échantillon ; l'heure vient du PC (droite heure/index), pas d'horloge à régler sur la carte |
+| **16 bits** (au départ 24) | bruit propre du micro ≈ -87 dBFS, au-dessus du pas de 16 bits : 24 bits n'apportaient rien ; 32 ko/s au lieu de 48 |
+| `power_save_mode: none` | obligatoire pour un flux continu (9.2) |
+| `post_connect_roaming: false` | la carte ne bouge pas ; chaque recherche de point d'accès (toutes les 5 min) coûtait ~40 paquets |
+| Pause de l'envoi après 3 échecs de suite (0,5 s, doublée jusqu'à 8 s) | une liaison saturée ne doit pas priver l'API et les mesures de HA (9.2) |
+| `output_power: 15dB` (défaut 20) | moins de pics de courant à l'émission ; à -55 dBm la marge reste large (9.2, hypothèse de l'alimentation) |
+| `api: reboot_timeout: 5min` (défaut 15) | sortir plus vite d'une liaison « zombie » (9.2) |
+| Niveau publié après un passe-haut Butterworth 2e ordre à 100 Hz | sous 100 Hz, le micro capte des fluctuations de pression (souffle, -31 dBFS vers 1-2 Hz au bureau) qui masquaient le son audible (≈ -65 dBFS au bureau) ; le son envoyé et la crête restent bruts |
+| Témoin d'état sur la LED bleue, décidé par la carte seule | voir un problème sans HA : éclair bref toutes les 5 s = OK ; 2 / 3 / 4 clignotements puis 2 s = son saturé (pause < 30 s) / pas de connexion à l'API / Wi-Fi perdu ; éteinte = carte figée ou sans courant |
+| Micro coupé quand le PC est éteint (automatisation HA) | rien ne reçoit le son ; la carte arrête d'émettre dans le vide |
+
+### 9.2 Problèmes rencontrés
 
 | Situation | Paquets perdus (PC) | Retard médian / p95 | Échecs d'envoi (carte) | Secondes invalides SpectraSense |
 |---|---|---|---|---|
@@ -334,18 +354,30 @@ Câblage : SCK GPIO26, WS GPIO25, SD GPIO33, L/R à la masse (`channel: left` fo
 | `none`, arrière-cuisine, chargeur Samsung + **câble douteux** (-60 dBm) | 35 à 60 % | 250 ms / 0,5-1,9 s | +12 /s | 161 s en 7 min |
 | `none`, arrière-cuisine, même chargeur, **autre câble** (-57 dBm, 3 min) | 0,03 % | 24 / 62 ms | 0 | 0 |
 
-- **`power_save_mode: none` est obligatoire** pour un flux continu : en « light », la radio dort entre
-  les balises et la file d'envoi déborde.
-- **Une alimentation faible ne se voit pas** : pas de redémarrage, signal reçu correct, mais les pics
-  d'émission (300-400 mA) font chuter la tension, les trames partent mal et sont réémises jusqu'à saturer
-  la liaison. Le flux audio saturé prive aussi la chaîne SpectraSense des mesures de puissance de HA.
-  À surveiller sur la carte de prod (PZEM + sondes) : « Micro échecs d'envoi » et les secondes invalides.
-- Mémoire : ~100 Ko libres en régime normal (le micro coûte ~10 Ko), minimum 78 Ko ; elle tombe vers
-  52 Ko quand les paquets s'accumulent.
-- Niveau publié : passe-haut de Butterworth du 2e ordre à 100 Hz. Sous 100 Hz, le micro capte des
-  fluctuations de pression (souffle, -31 dBFS vers 1-2 Hz au bureau) qui masquaient le son audible
-  (≈ -65 dBFS au bureau, ventilateur de la carte graphique). Bruit propre du micro ≈ -87 dBFS :
-  16 bits suffiraient (−33 % de débit) si le débit redevient un sujet.
+1. **Économie d'énergie du Wi-Fi** : en « light », la radio dort entre les balises, la file d'envoi
+   déborde, puis l'API se déconnecte. Réglé par `power_save_mode: none`.
+2. **Câble d'alimentation** : avec un mauvais câble, rien ne redémarre et le signal reçu reste bon,
+   mais les pics d'émission (300-400 mA) font chuter la tension ; les trames partent mal et sont
+   réémises jusqu'à saturer la liaison. Le flux audio saturé prive aussi la chaîne SpectraSense des
+   mesures de HA (161 s invalides). Un autre câble a tout réglé… pendant un temps.
+3. **Décrochages restants** (même chargeur, nouveau câble) : à 20:38, 21:25 et 22:01, après 3 à 28 min
+   sans problème, les échecs montent pendant ~2 min, puis la carte devient injoignable (`Errno 113`,
+   pas de réponse ARP). Elle **se croit pourtant connectée** (témoin à 2 clignotements, pas 4), laisse
+   passer un paquet de temps en temps, et ne s'en sort que par le redémarrage automatique (API sans HA
+   pendant 15 min). Signal -53 à -60 dBm, mémoire stable, aucune machine en marche, pas de micro-ondes.
+   La carte entend le point d'accès mais n'arrive plus à émettre : **piste de l'alimentation**
+   (chargeur), jamais vue au bureau sur le PC. Réponse : `output_power: 15dB`, redémarrage après 5 min
+   sans HA, pause de l'envoi. **À confirmer** : une heure dans l'arrière-cuisine sur une autre
+   alimentation (batterie ou autre chargeur). Pour la carte de prod : alimentation de qualité, et un
+   condensateur de 470 µF entre 5 V et GND en assurance.
+4. **Premier flash « annulé »** : la carte débranchée moins de 60 s après le flash est repartie sur
+   l'ancien firmware (`OTA rollback detected`) : un nouveau firmware n'est validé qu'après 60 s sans
+   redémarrage. Laisser la carte tranquille au moins une minute après chaque flash.
+
+- Mémoire : ~100 Ko libres en régime normal (le micro coûte ~10 Ko), minimum 78-85 Ko ; elle tombe
+  vers 52 Ko quand les paquets s'accumulent.
+- À surveiller sur la carte de prod (PZEM + sondes) : « Micro échecs d'envoi », « Micro paquets
+  abandonnés » et « SpectraSense secondes invalides ».
 
 ## Matériel de référence
 

@@ -12,7 +12,7 @@ SpectraSense :
 | `nielsen/` | code du livre de Nielsen porté en Python 3 (MNIST) | historique, ne plus modifier |
 | `experiences/` | notebooks d'apprentissage (essais MNIST, `convolution_pas_a_pas.ipynb`) | vivant ; `donnees/` et `resultats/` non versionnés |
 | `banc/` | banc d'essai : entraîner, comparer, choisir des réseaux pour l'ESP32 | vivant — voir `banc/README.md` |
-| `esp32/` | moteur d'inférence C++, composants ESPHome, outils d'export et de test | vivant — voir `esp32/README.md` |
+| `esp32/` | moteur d'inférence C++, composants ESPHome (dont `audio_udp`, micro INMP441), outils d'export et de test | vivant — voir `esp32/README.md` |
 | `outils/`, `mesures_moteur.py`, `verif_gpu.py` | mesures qui ont servi à choisir le moteur du banc | historique |
 
 Le dépôt voisin `spectrasense` (`C:\AItools\Projets\spectrasense`) prépare les données, évalue les

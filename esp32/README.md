@@ -10,6 +10,9 @@ USB-série CH340, MAC b0:a7:32:27:da:20 (`board: esp32dev`, framework ESP-IDF).
   dossier `esp32/esphome/components`). Les headers générés par `export.py` sont commités :
   chaque modèle déployé correspond à un commit.
 - `esphome/cnn-test.yaml` = référence de la config saisie dans HA.
+- `esphome/cnn-test-micro.yaml` = `cnn-test.yaml` + micro INMP441 (composant `audio_udp`, son brut vers
+  le PC pour le dataset audio de SpectraSense). C'est la config en service ; recoller `cnn-test.yaml`
+  dans HA pour revenir en arrière. Voir « Micro INMP441 » plus bas.
 - `esphome/cnn-test-local.yaml` = variante de secours compilée sur le PC (CLI ESPHome).
   **Pas à jour** (sans `nn_spectrasense`) : Antoine décide de son sort ; ne pas la modifier sans lui.
 
@@ -23,6 +26,7 @@ USB-série CH340, MAC b0:a7:32:27:da:20 (`board: esp32dev`, framework ESP-IDF).
 
     github_user: nErur
     github_token: "github_pat_..."   # jeton fine-grained, lecture seule, ce dépôt uniquement
+    audio_pc_ip: 192.168.68.145      # PC qui reçoit le son (cnn-test-micro.yaml) ; IP fixe (réservation DHCP)
 
 ESPHome stocke ces identifiants en clair dans son dossier de travail : jeton en lecture seule,
 limité à ce dépôt. Noter sa date d'expiration.
@@ -163,3 +167,45 @@ et le profilage. Modèle actuel : `162dcb9fbf` — 28/28 fenêtres conformes sur
 `tests/spectrasense/rejouer.cpp` fait tourner `chaine.cpp` sur un fichier « t,p » et écrit chaque seconde
 (grille, porte, probabilités, états, cafés). `parite_cpp.py` (dépôt spectrasense) le compile et le compare
 à Python. Arguments : `rejouer mesures.csv sortie.csv [seuil tenue seuil_pic [retard [etat_initial]]]`.
+
+## Micro INMP441 (`audio_udp`, `cnn-test-micro.yaml`)
+
+Le micro, entre la machine à café et le grille-pain, sert à construire un dataset audio (frontières de
+phase physiques) ; il n'est pas destiné à la production. Le son part brut au PC, qui l'écrit en WAV :
+`spectrasense/tools/audio/` (récepteur, tâche planifiée, format des fichiers). Choix, mesures et
+problèmes rencontrés : `ESSAIS.md`, section 9.
+
+Câblage : VDD → 3V3, GND → GND, L/R → GND, SCK → GPIO26, WS → GPIO25, SD → GPIO33.
+
+| Option `audio_udp` | Défaut | Rôle |
+|---|---|---|
+| `microphone` | — | micro I2S (`bits_per_sample: 32bit`, mono) |
+| `host`, `port` | —, 50005 | destination UDP (le PC) |
+| `sample_bits` | 16 | 16 ou 24 bits envoyés (paquets `SSA2` / `SSA1`) |
+| `samples_per_packet` | 480 | 30 ms à 16 kHz ; refusé si le paquet dépasse 1 472 octets |
+| `level`, `peak` | — | niveau efficace au-dessus de 100 Hz et crête brute (dBFS) |
+| `packets`, `errors`, `dropped` | — | paquets envoyés, échecs d'envoi, paquets abandonnés pendant une pause (totaux, remis à 0 au démarrage) |
+
+Après 3 échecs d'envoi de suite, l'envoi se met en pause 0,5 s (puis 1, 2… 8 s tant que ça échoue) :
+une liaison saturée ne doit pas priver l'API et les mesures de HA. Le composant démarre le micro
+lui-même ; le commutateur « Micro » l'arrête ou le relance (pas de restauration au démarrage : le
+commutateur s'installe avant le micro). Réglages Wi-Fi indispensables : `power_save_mode: none`,
+`post_connect_roaming: false` ; et une **bonne alimentation** (ESSAIS 9.2).
+
+**Témoin lumineux** (LED bleue D2, décidé par la carte seule, lisible sans HA) :
+
+| LED | Signification |
+|---|---|
+| éclair très bref toutes les 5 s | tout va bien |
+| 2 clignotements, 2 s éteinte | son : liaison saturée (envoi mis en pause il y a moins de 30 s) |
+| 3 clignotements, 2 s éteinte | plus aucune connexion à l'API (HA) |
+| 4 clignotements, 2 s éteinte | Wi-Fi perdu |
+| éteinte en permanence | carte figée ou sans courant |
+
+Le plus grave l'emporte. Une carte qui entend encore le point d'accès sans pouvoir émettre reste à
+2 clignotements jusqu'à ce que l'API constate la coupure ; elle redémarre seule après 5 min sans HA.
+
+**Mise à jour** : commit, push ; si le récepteur a changé, `spectrasense\tools\audio\relancer_recepteur.ps1` ;
+recoller `cnn-test-micro.yaml` dans HA, « Install », puis **ne pas toucher la carte pendant 60 s**
+(sinon le bootloader revient à l'ancien firmware : `OTA rollback detected`).
+
