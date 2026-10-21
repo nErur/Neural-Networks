@@ -15,6 +15,7 @@ namespace esphome::audio_udp {
 static const char *const TAG = "audio_udp";
 static const int64_t TROU_US = 200000;  // plus de 200 ms sans données : discontinuité (micro arrêté…)
 static const float PLEINE_ECHELLE = 8388608.0f;  // 2^23
+static const float PASSE_HAUT_A = 0.97f;         // coupure ≈ (1 - a) × 16 000 / 2π ≈ 76 Hz
 
 static void ecrire_u32(uint8_t *p, uint32_t v) {
   for (int i = 0; i < 4; i++)
@@ -81,8 +82,13 @@ void AudioUdp::recevoir_(const std::vector<uint8_t> &donnees) {
     dst[2] = src[3];
 
     int32_t x = ((int32_t) ((uint32_t) src[1] << 8 | (uint32_t) src[2] << 16 | (uint32_t) src[3] << 24)) >> 8;
-    somme += x;
-    somme2 += (int64_t) x * x;
+    // niveau : passe-haut du 1er ordre (~75 Hz) ; l'INMP441 dérive lentement (infrasons à ~-30 dBFS)
+    // et masquerait le son audible (~-70 dBFS dans une cuisine calme). La crête reste brute (saturation).
+    this->hp_y_ = PASSE_HAUT_A * (this->hp_y_ + (float) (x - this->hp_x_));
+    this->hp_x_ = x;
+    int32_t y = (int32_t) this->hp_y_;
+    somme += y;
+    somme2 += (int64_t) y * y;
     int32_t a = x < 0 ? -x : x;
     if (a > max_abs)
       max_abs = a;

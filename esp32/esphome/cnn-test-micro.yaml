@@ -34,6 +34,9 @@ ota:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+  # Pas d'économie d'énergie : en « light » (défaut ESP32), la radio s'endort entre les balises,
+  # les paquets audio s'accumulent (retard jusqu'à 4 s, envois refusés, déconnexion de l'API).
+  power_save_mode: none
   ap:
     ssid: "cnn-test fallback"
     password: !secret cnn_test_ap_password
