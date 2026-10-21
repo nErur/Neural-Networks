@@ -19,6 +19,9 @@ logger:
   level: DEBUG
 
 api:
+  # Sans aucune connexion de HA pendant 5 min, la carte redémarre (défaut 15 min) : elle se sort
+  # plus vite d'une liaison Wi-Fi « zombie » (associée, mais plus rien ne passe).
+  reboot_timeout: 5min
   encryption:
     key: !secret cnn_test_api_key
   actions:
@@ -40,6 +43,10 @@ wifi:
   # Pas de recherche d'un meilleur point d'accès toutes les 5 min (la carte ne bouge pas) :
   # chaque recherche fait quitter le canal à la radio et coûtait ~40 paquets audio.
   post_connect_roaming: false
+  # Puissance d'émission réduite (défaut 20 dB) : moins de pics de courant à l'émission. Les décrochages
+  # du 21/10 (la carte entend le point d'accès mais rien de ce qu'elle émet ne passe) ressemblent à une
+  # alimentation trop juste ; à -55 dBm, 15 dB laissent encore une marge large.
+  output_power: 15dB
   ap:
     ssid: "cnn-test fallback"
     password: !secret cnn_test_ap_password
