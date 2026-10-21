@@ -1,0 +1,253 @@
+# Config de la carte de test CNN + micro INMP441 (dataset audio SpectraSense).
+# Variante de cnn-test.yaml (garder celui-ci pour revenir en arrière) : mêmes réseaux, plus le micro
+# dont le son brut part en UDP vers le PC (composant audio_udp).
+# Secrets dans /config/esphome/secrets.yaml, plus audio_pc_ip (adresse IP du PC récepteur).
+#
+# Câblage INMP441 -> ESP32 :
+#   VDD -> 3V3   GND -> GND   L/R -> GND (canal gauche)
+#   SCK -> GPIO26   WS -> GPIO25   SD -> GPIO33
+esphome:
+  name: cnn-test
+  friendly_name: CNN test
+
+esp32:
+  board: esp32dev          # ESP-WROOM-32, même puce que la carte PZEM
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+api:
+  encryption:
+    key: !secret cnn_test_api_key
+  actions:
+    - action: classify               # image brute 28×28, 784 entiers 0..255 (send.py)
+      variables:
+        image: int[]
+      then:
+        - lambda: id(mnist).submit_image(image);
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "cnn-test fallback"
+    password: !secret cnn_test_ap_password
+
+captive_portal:
+
+# Composants maison lus dans le dépôt privé GitHub.
+external_components:
+  - source:
+      type: git
+      url: https://github.com/nErur/Neural-Networks
+      ref: master                      # plus tard : un tag pour la carte PZEM
+      path: esp32/esphome/components
+      username: !secret github_user
+      password: !secret github_token
+    components: [nn_mnist, nn_spectrasense, audio_udp]
+    refresh: 0s                        # récupère le dernier commit à chaque compilation
+
+# LED bleue « D2 » de la carte (GPIO2, allumée à l'état haut) : témoin d'inférence.
+# GPIO2 est une broche de démarrage (strapping) ; la LED ne gêne pas le démarrage.
+output:
+  - platform: gpio
+    id: led_d2
+    pin:
+      number: GPIO2
+      ignore_strapping_warning: true
+
+nn_mnist:
+  id: mnist
+  activity_output: led_d2
+  activity_duration: 150ms
+  weights_in_ram: true          # expérience : false = poids lus en flash
+  prediction:
+    name: "Chiffre prédit"
+  confidence:
+    name: "Confiance"
+  margin:
+    name: "Marge"
+  inference_time:
+    name: "Temps d'inférence"
+  expected_label:
+    name: "Étiquette attendue"
+  max_error:
+    name: "Écart max vs Python"
+  model_id:
+    name: "Modèle"
+  autotest:
+    name: "Bilan autotest"
+
+# Réseau convolutif SpectraSense (12 classes) : autotest, profilage, et chaîne complète en direct,
+# en parallèle de la carte PZEM : la puissance de la ligne arrive par Home Assistant.
+# Utilise le moteur de nn_mnist (une seule copie dans le firmware).
+nn_spectrasense:
+  id: spectra
+  weights_in_ram: true
+  power: puissance_ligne
+  time_id: heure_ha             # état long (arrêt / veille / maintien) gardé d'un redémarrage à l'autre
+  clock_delay: 2s               # horloge en retard (rafales HA) ; 0s sur la carte PZEM
+  threshold: 0.95               # réglages de l'automate retenus sur la validation
+  hold: 1
+  off_hold: 8s                  # repos continu avant de repasser grille-pain / bouilloire / inconnu à « arrêt »
+  peak_threshold: 0.5
+  machine:
+    name: "Machine à café"
+  toaster:
+    name: "Grille-pain"
+  kettle:
+    name: "Bouilloire"
+  unknown_load:
+    name: "Consommateur inconnu"
+  coffee_count:                 # total depuis la mise en service, gardé en flash (utility_meter côté HA)
+    name: "Cafés"
+  gate:
+    name: "SpectraSense porte"
+  network_class:
+    name: "SpectraSense classe du réseau"
+  network_confidence:           # % de la classe dominante (si la classe change ou bouge de 2 points)
+    name: "SpectraSense confiance"
+  invalid_seconds:
+    name: "SpectraSense secondes invalides"
+  class_probabilities:          # probabilités brutes du réseau (%), avant l'automate
+    repos:
+      name: "SpectraSense p repos"
+    allumage_chauffe:
+      name: "SpectraSense p allumage chauffe"
+    allumage_regulation:
+      name: "SpectraSense p allumage régulation"
+    allumage_fin:
+      name: "SpectraSense p allumage fin"
+    cafe_broyage:
+      name: "SpectraSense p café broyage"
+    cafe_extraction:
+      name: "SpectraSense p café extraction"
+    cafe_fin:
+      name: "SpectraSense p café fin"
+    pic_maintien:
+      name: "SpectraSense p pic de maintien"
+    extinction:
+      name: "SpectraSense p extinction"
+    grille_pain:
+      name: "SpectraSense p grille-pain"
+    bouilloire:
+      name: "SpectraSense p bouilloire"
+    consommateur_inconnu:
+      name: "SpectraSense p consommateur inconnu"
+  model_id:
+    name: "SpectraSense modèle"
+  autotest:
+    name: "SpectraSense autotest"
+  inference_time:
+    name: "SpectraSense temps d'inférence"
+  max_error:
+    name: "SpectraSense écart max vs Python"
+
+# Micro INMP441 : bus I2S, lecture en 32 bits (24 bits utiles), 16 kHz, mono.
+i2s_audio:
+  - id: bus_i2s
+    i2s_bclk_pin: GPIO26        # SCK
+    i2s_lrclk_pin: GPIO25       # WS
+
+microphone:
+  - platform: i2s_audio
+    id: micro
+    i2s_audio_id: bus_i2s
+    adc_type: external
+    i2s_din_pin: GPIO33         # SD
+    pdm: false
+    sample_rate: 16000
+    bits_per_sample: 32bit
+    channel: left               # L/R à la masse ; si le niveau reste au plancher (-144 dBFS), essayer right
+
+# Son brut vers le PC (paquets de 30 ms, 48 ko/s). Démarre le micro au démarrage de la carte.
+audio_udp:
+  id: flux_audio
+  microphone: micro
+  host: !secret audio_pc_ip
+  port: 50005
+  update_interval: 5s
+  level:
+    name: "Micro niveau"
+  peak:
+    name: "Micro crête"
+  packets:
+    name: "Micro paquets envoyés"
+  errors:
+    name: "Micro échecs d'envoi"
+
+# Mémoire et durée de boucle : surveiller la cohabitation micro + réseaux.
+debug:
+  update_interval: 30s
+
+time:
+  - platform: homeassistant
+    id: heure_ha
+
+sensor:
+  # Puissance de la ligne arrière-cuisine, lue dans HA (carte PZEM) : entrée de la chaîne.
+  - platform: homeassistant
+    id: puissance_ligne
+    entity_id: sensor.esphome_web_9f0748_power
+    internal: true
+  # Entités de diagnostic de la carte.
+  - platform: uptime
+    name: "Uptime"
+  - platform: wifi_signal
+    name: "Signal Wi-Fi"
+    update_interval: 60s
+  - platform: debug
+    free:
+      name: "Mémoire libre"
+    block:
+      name: "Plus grand bloc libre"
+    min_free:
+      name: "Mémoire libre minimale"
+    loop_time:
+      name: "Durée de boucle"
+
+# Arrêt / reprise du micro depuis HA. Pas de restauration au démarrage : le commutateur s'installe
+# avant le micro (le démarrer à ce moment planterait la carte) ; audio_udp le relance à chaque démarrage.
+switch:
+  - platform: template
+    name: "Micro"
+    icon: mdi:microphone
+    restore_mode: DISABLED
+    lambda: return id(micro).is_running();
+    turn_on_action:
+      - microphone.capture: micro
+    turn_off_action:
+      - microphone.stop_capture: micro
+
+text_sensor:
+  - platform: version
+    name: "Version ESPHome"
+
+button:
+  - platform: restart
+    name: "Redémarrer"
+  - platform: template
+    name: "Image de test suivante"
+    on_press:
+      - lambda: id(mnist).next_test_image();
+  - platform: template
+    name: "Lancer l'autotest"
+    on_press:
+      - lambda: id(mnist).run_autotest();
+  - platform: template
+    name: "Profilage"
+    on_press:
+      - lambda: id(mnist).run_profile();
+  - platform: template
+    name: "SpectraSense autotest"
+    on_press:
+      - lambda: id(spectra).run_autotest();
+  - platform: template
+    name: "SpectraSense profilage"
+    on_press:
+      - lambda: id(spectra).run_profile();
