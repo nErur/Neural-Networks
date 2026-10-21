@@ -321,6 +321,32 @@ inutile à une inférence par seconde). `banc/couts.py` est recalé sur ces mesu
 
 ---
 
+## 9. Micro INMP441 et son en UDP (21 octobre 2026)
+
+Composant `audio_udp`, config `cnn-test-micro.yaml` : son brut (16 kHz, 24 bits, paquets de 30 ms,
+48 ko/s) envoyé au PC (`spectrasense/tools/audio/recepteur.py`), en plus des deux réseaux.
+Câblage : SCK GPIO26, WS GPIO25, SD GPIO33, L/R à la masse (`channel: left` fonctionne).
+
+| Situation | Paquets perdus (PC) | Retard médian / p95 | Échecs d'envoi (carte) | Secondes invalides SpectraSense |
+|---|---|---|---|---|
+| Wi-Fi `power_save_mode: light` (défaut ESP32), bureau | 0 → 94 % en 4 min | 18 ms → 0,3 s / 3,9 s | +16 /s, puis déconnexion de l'API | — |
+| `power_save_mode: none`, bureau, alimentation par le PC (8 min) | 0,07 % | 18 / 61 ms | 0 | 0 |
+| `none`, arrière-cuisine, chargeur Samsung + **câble douteux** (-60 dBm) | 35 à 60 % | 250 ms / 0,5-1,9 s | +12 /s | 161 s en 7 min |
+| `none`, arrière-cuisine, même chargeur, **autre câble** (-57 dBm, 3 min) | 0,03 % | 24 / 62 ms | 0 | 0 |
+
+- **`power_save_mode: none` est obligatoire** pour un flux continu : en « light », la radio dort entre
+  les balises et la file d'envoi déborde.
+- **Une alimentation faible ne se voit pas** : pas de redémarrage, signal reçu correct, mais les pics
+  d'émission (300-400 mA) font chuter la tension, les trames partent mal et sont réémises jusqu'à saturer
+  la liaison. Le flux audio saturé prive aussi la chaîne SpectraSense des mesures de puissance de HA.
+  À surveiller sur la carte de prod (PZEM + sondes) : « Micro échecs d'envoi » et les secondes invalides.
+- Mémoire : ~100 Ko libres en régime normal (le micro coûte ~10 Ko), minimum 78 Ko ; elle tombe vers
+  52 Ko quand les paquets s'accumulent.
+- Niveau publié : passe-haut de Butterworth du 2e ordre à 100 Hz. Sous 100 Hz, le micro capte des
+  fluctuations de pression (souffle, -31 dBFS vers 1-2 Hz au bureau) qui masquaient le son audible
+  (≈ -65 dBFS au bureau, ventilateur de la carte graphique). Bruit propre du micro ≈ -87 dBFS :
+  16 bits suffiraient (−33 % de débit) si le débit redevient un sujet.
+
 ## Matériel de référence
 
 - Carte `cnn-test` : ESP-WROOM-32, puce **ESP32-D0WD-V3 rév. 3.1**, deux cœurs à **240 MHz**,
