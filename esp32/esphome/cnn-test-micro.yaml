@@ -58,7 +58,7 @@ external_components:
     components: [nn_mnist, nn_spectrasense, audio_udp]
     refresh: 0s                        # récupère le dernier commit à chaque compilation
 
-# LED bleue « D2 » de la carte (GPIO2, allumée à l'état haut) : témoin d'inférence.
+# LED bleue « D2 » de la carte (GPIO2, allumée à l'état haut) : témoin d'état (ci-dessous) et d'inférence MNIST.
 # GPIO2 est une broche de démarrage (strapping) ; la LED ne gêne pas le démarrage.
 output:
   - platform: gpio
@@ -66,6 +66,44 @@ output:
     pin:
       number: GPIO2
       ignore_strapping_warning: true
+
+# Témoin lumineux (LED bleue D2), décidé par la carte seule : lisible même sans HA ni Wi-Fi.
+#   un éclair très bref toutes les 5 s ....... tout va bien (la carte vit)
+#   2 clignotements puis 2 s éteinte ......... son : liaison saturée (envoi mis en pause il y a < 30 s)
+#   3 clignotements puis 2 s éteinte ......... HA : plus aucune connexion à l'API
+#   4 clignotements puis 2 s éteinte ......... Wi-Fi perdu
+#   éteinte en permanence .................... carte figée ou sans courant
+# Le problème le plus grave l'emporte. Les éclairs de nn_mnist (inférence à la demande) restent visibles.
+interval:
+  - interval: 50ms
+    then:
+      - lambda: |-
+          // pas de 50 ms ; code n : n éclairs (150 ms allumée, 150 ms éteinte) puis 2 s éteinte
+          static uint16_t pas = 0;
+          static uint8_t code = 0;
+          static bool allumee = false;
+          const uint16_t cycle = code == 0 ? 100 : 6 * code + 40;
+          if (pas >= cycle)
+            pas = 0;
+          if (pas == 0) {  // l'état est relu au début de chaque cycle
+            if (!wifi::global_wifi_component->is_connected())
+              code = 4;
+            else if (!api::global_api_server->is_connected())
+              code = 3;
+            else if (id(flux_audio).liaison_saturee(30000))
+              code = 2;
+            else
+              code = 0;
+          }
+          const bool voulue = code == 0 ? pas == 0 : (pas < 6 * code && pas % 6 < 3);
+          if (voulue != allumee) {  // n'écrit qu'aux changements : laisse vivre les éclairs de nn_mnist
+            if (voulue)
+              id(led_d2).turn_on();
+            else
+              id(led_d2).turn_off();
+            allumee = voulue;
+          }
+          pas++;
 
 nn_mnist:
   id: mnist

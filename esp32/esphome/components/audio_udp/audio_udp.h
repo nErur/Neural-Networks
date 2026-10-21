@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <lwip/sockets.h>
 
@@ -46,6 +47,17 @@ class AudioUdp : public PollingComponent {
   void set_errors_sensor(sensor::Sensor *s) { erreurs_ = s; }
   void set_dropped_sensor(sensor::Sensor *s) { abandons_capteur_ = s; }
 
+  // Vrai si l'envoi est en pause ou s'est mis en pause dans les fenetre_ms dernières millisecondes
+  // (liaison saturée). Sert au témoin lumineux, qui doit marcher même sans HA.
+  bool liaison_saturee(uint32_t fenetre_ms) const {
+    const uint32_t derniere = this->derniere_pause_ms_;
+    if (derniere == 0)
+      return false;
+    // négatif pendant la pause (la fin est dans le futur), puis temps écoulé depuis la fin
+    const int32_t depuis = (int32_t) ((uint32_t) (esp_timer_get_time() / 1000) - derniere);
+    return depuis < (int32_t) fenetre_ms;
+  }
+
  protected:
   void recevoir_(const std::vector<uint8_t> &donnees);  // tâche du micro (priorité 23)
   void envoyer_();                                       // idem
@@ -76,6 +88,7 @@ class AudioUdp : public PollingComponent {
   bool en_difficulte_{false};
   int64_t pause_jusqu_a_{0};
   int64_t pause_us_{0};
+  volatile uint32_t derniere_pause_ms_{0};  // fin de la dernière pause décidée (ms depuis le démarrage)
 
   // statistiques partagées avec update() (boucle principale)
   portMUX_TYPE verrou_ = portMUX_INITIALIZER_UNLOCKED;

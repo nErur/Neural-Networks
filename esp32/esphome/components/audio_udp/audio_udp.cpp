@@ -148,6 +148,8 @@ void AudioUdp::envoyer_() {
     // après une pause, un seul échec suffit à repartir en pause (plus longue)
     if (this->en_difficulte_ || ++this->echecs_suite_ >= ECHECS_AVANT_PAUSE) {
       this->pause_jusqu_a_ = maintenant + this->pause_us_;
+      // fin de la pause : le témoin reste allumé pendant toute la pause puis encore la fenêtre choisie
+      this->derniere_pause_ms_ = std::max<uint32_t>(1, (uint32_t) (this->pause_jusqu_a_ / 1000));
       this->pause_us_ = std::min(2 * this->pause_us_, PAUSE_MAX_US);
       this->en_difficulte_ = true;
       this->echecs_suite_ = 0;
