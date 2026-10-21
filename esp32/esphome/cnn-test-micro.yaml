@@ -37,6 +37,9 @@ wifi:
   # Pas d'économie d'énergie : en « light » (défaut ESP32), la radio s'endort entre les balises,
   # les paquets audio s'accumulent (retard jusqu'à 4 s, envois refusés, déconnexion de l'API).
   power_save_mode: none
+  # Pas de recherche d'un meilleur point d'accès toutes les 5 min (la carte ne bouge pas) :
+  # chaque recherche fait quitter le canal à la radio et coûtait ~40 paquets audio.
+  post_connect_roaming: false
   ap:
     ssid: "cnn-test fallback"
     password: !secret cnn_test_ap_password
@@ -168,12 +171,14 @@ microphone:
     bits_per_sample: 32bit
     channel: left               # L/R à la masse ; si le niveau reste au plancher (-144 dBFS), essayer right
 
-# Son brut vers le PC (paquets de 30 ms, 48 ko/s). Démarre le micro au démarrage de la carte.
+# Son brut vers le PC (paquets de 30 ms, 16 bits, 32 ko/s). Démarre le micro au démarrage de la carte.
+# Envoi mis en pause (0,5 à 8 s) quand la liaison sature, pour laisser passer l'API et HA.
 audio_udp:
   id: flux_audio
   microphone: micro
   host: !secret audio_pc_ip
   port: 50005
+  sample_bits: 16               # bruit propre du micro ~-87 dBFS : 24 bits n'apportaient rien
   update_interval: 5s
   level:
     name: "Micro niveau"
@@ -183,6 +188,8 @@ audio_udp:
     name: "Micro paquets envoyés"
   errors:
     name: "Micro échecs d'envoi"
+  dropped:
+    name: "Micro paquets abandonnés"
 
 # Mémoire et durée de boucle : surveiller la cohabitation micro + réseaux.
 debug:
