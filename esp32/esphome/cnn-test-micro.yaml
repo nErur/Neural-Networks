@@ -216,7 +216,7 @@ microphone:
     bits_per_sample: 32bit
     channel: left               # L/R à la masse ; si le niveau reste au plancher (-144 dBFS), essayer right
 
-# Son brut vers le PC (paquets de 30 ms, 16 bits, 32 ko/s). Démarre le micro au démarrage de la carte.
+# Son brut vers le PC (paquets de 45 ms, 16 bits, 32 ko/s). Démarre le micro au démarrage de la carte.
 # Envoi mis en pause (0,5 à 8 s) quand la liaison sature, pour laisser passer l'API et HA.
 audio_udp:
   id: flux_audio
@@ -224,6 +224,7 @@ audio_udp:
   host: !secret audio_pc_ip
   port: 50005
   sample_bits: 16               # bruit propre du micro ~-87 dBFS : 24 bits n'apportaient rien
+  samples_per_packet: 720       # 45 ms (1 468 octets) : 1/3 de paquets en moins, la file d'envoi tient ~1,5 s
   update_interval: 5s
   level:
     name: "Micro niveau"

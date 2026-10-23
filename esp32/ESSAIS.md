@@ -334,7 +334,7 @@ But : enregistrer le son des machines (café, grille-pain) pour des frontières 
 |---|---|
 | Câblage SCK GPIO26, WS GPIO25, SD GPIO33, L/R à la masse, VDD 3V3 | broches libres, aucune ne sert au démarrage ; `channel: left` fonctionne |
 | Lecture 16 kHz, 32 bits, mono ; envoi brut en UDP, aucun traitement sur la carte | la carte reste libre pour les réseaux ; tout se fait sur le PC, sans limite de mémoire |
-| Paquets de 30 ms (480 échantillons), en-tête : session, seq, index, t_us | seq = pertes visibles ; index = position exacte de chaque échantillon ; l'heure vient du PC (droite heure/index), pas d'horloge à régler sur la carte |
+| Paquets de 45 ms (720 échantillons, 1 468 octets ; 30 ms au départ), en-tête : session, seq, index, t_us | seq = pertes visibles ; index = position exacte de chaque échantillon ; l'heure vient du PC (droite heure/index), pas d'horloge à régler sur la carte ; 720 : un tiers de paquets en moins, la file d'envoi de la carte (~32 paquets) couvre ~1,5 s au lieu de 1 s |
 | **16 bits** (au départ 24) | bruit propre du micro ≈ -87 dBFS, au-dessus du pas de 16 bits : 24 bits n'apportaient rien ; 32 ko/s au lieu de 48 |
 | `power_save_mode: none` | obligatoire pour un flux continu (9.2) |
 | `post_connect_roaming: false` | la carte ne bouge pas ; chaque recherche de point d'accès (toutes les 5 min) coûtait ~40 paquets |
@@ -373,6 +373,27 @@ But : enregistrer le son des machines (café, grille-pain) pour des frontières 
 4. **Premier flash « annulé »** : la carte débranchée moins de 60 s après le flash est repartie sur
    l'ancien firmware (`OTA rollback detected`) : un nouveau firmware n'est validé qu'après 60 s sans
    redémarrage. Laisser la carte tranquille au moins une minute après chaque flash.
+
+5. **Coupures périodiques sous charge** (22 et 23/10, émission à 15 dB, plus aucun redémarrage ni
+   décrochage « zombie » : une seule session de la carte pendant plus de 30 h) :
+   - pertes de 3,7 à 5,7 % ; hors coupures, retard de 40 ms en médiane ;
+   - **toutes les ~76 s, très régulièrement, la liaison s'arrête 3 à 4 s** quand le micro diffuse :
+     ~60 % des paquets perdus sont partis de la carte sans arriver (perdus en radio), ~40 % refusés
+     ou abandonnés par la carte quand sa file déborde ;
+   - au repos (micro coupé), pas de rythme de 76 s (pings du 22/10, 11 ms en médiane) ; micro allumé
+     (pings du 23/10), la carte perd 3-4 pings à chacune des 24 coupures sur 30 min, et un autre
+     appareil en 2,4 GHz **sur le même Deco** (bureau) est touché aussi, plus légèrement
+     (14 pings perdus dans ces fenêtres, ~5 attendus au hasard) : phénomène radio côté Wi-Fi sous
+     charge, pas côté carte (micro, calcul et production des paquets continus : seq et index sans trou) ;
+   - coupures longues (9 à 30 s, au repos) **communes à cnn-test (arrière-cuisine) et à un appareil du
+     garage sur un autre Deco**, pas à l'appareil du bureau sur le même Deco que cnn-test : cause locale
+     à ces pièces (électricité ou source radio), non élucidée.
+
+   **Décision (23/10)** : on arrête l'enquête. Le flux audio ne sert qu'au dataset, les trous sont
+   connus (journal) et comblés par du silence, et quelques pourcents de pertes ne gênent pas
+   l'entraînement. Sur la carte de prod, pas de flux continu : le réseau tourne sur la carte, le Wi-Fi
+   ne sert qu'à publier dans HA (une coupure retarde la publication, pas la détection).
+   Dernier réglage : paquets de 720 échantillons.
 
 - Mémoire : ~100 Ko libres en régime normal (le micro coûte ~10 Ko), minimum 78-85 Ko ; elle tombe
   vers 52 Ko quand les paquets s'accumulent.
